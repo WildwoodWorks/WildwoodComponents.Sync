@@ -1,0 +1,34 @@
+{
+  "folders": [
+    {
+      "path": "."
+    },
+    {
+      "path": "../WildwoodComponents.JS/Dev"
+    },
+    {
+      "path": "../WildwoodComponents.Net/Dev"
+    }
+  ],
+  "settings": {
+    "workbench.colorCustomizations": {
+      "activityBar.activeBackground": "#5099bf",
+      "activityBar.background": "#5099bf",
+      "activityBar.foreground": "#15202b",
+      "activityBar.inactiveForeground": "#15202b99",
+      "activityBarBadge.background": "#eed0e4",
+      "activityBarBadge.foreground": "#15202b",
+      "commandCenter.border": "#e7e7e799",
+      "sash.hoverBorder": "#5099bf",
+      "statusBar.background": "#3b7ea1",
+      "statusBar.foreground": "#e7e7e7",
+      "statusBarItem.hoverBackground": "#5099bf",
+      "statusBarItem.remoteBackground": "#3b7ea1",
+      "statusBarItem.remoteForeground": "#e7e7e7",
+      "titleBar.activeBackground": "#3b7ea1",
+      "titleBar.activeForeground": "#e7e7e7",
+      "titleBar.inactiveBackground": "#3b7ea199",
+      "titleBar.inactiveForeground": "#e7e7e799"
+    }
+  }
+}
