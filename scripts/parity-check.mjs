@@ -8,6 +8,7 @@
  *
  * Run:  node scripts/parity-check.mjs
  * Optionally override repo roots:  node scripts/parity-check.mjs <netDevRoot> <jsDevRoot>
+ * Quiet mode (storage-key result only; used by git hooks):  add --quiet
  *
  * It would have caught the drift fixed in May 2026 (cancel-endpoint mismatch,
  * unprefixed localStorage keys). Wire it into CI / a pre-commit hook.
@@ -15,8 +16,11 @@
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
 
-const NET_ROOT = process.argv[2] ?? 'C:/Development/WildwoodComponents.Net/Dev';
-const JS_ROOT = process.argv[3] ?? 'C:/Development/WildwoodComponents.JS/Dev';
+const argv = process.argv.slice(2);
+const QUIET = argv.includes('--quiet') || argv.includes('-q');
+const positional = argv.filter((a) => !a.startsWith('-'));
+const NET_ROOT = positional[0] ?? 'C:/Development/WildwoodComponents.Net/Dev';
+const JS_ROOT = positional[1] ?? 'C:/Development/WildwoodComponents.JS/Dev';
 
 const IGNORE = new Set(['node_modules', 'bin', 'obj', 'dist', '.git', '.vs']);
 
@@ -128,13 +132,15 @@ if (keyJsOnly.length) console.log(`  ✗ JS only:   ${keyJsOnly.join(', ')}`);
 const keysOk = keyNetOnly.length === 0 && keyJsOnly.length === 0;
 console.log(keysOk ? '  ✓ storage keys aligned' : '  ✗ STORAGE KEY MISMATCH');
 
-console.log('\n=== Endpoint paths (heuristic report) ===');
-console.log(`  .NET: ${netEp.size}   JS: ${jsEp.size}`);
-console.log('  Note: one-sided entries may be legitimate (e.g. admin-only or server-only');
-console.log('  routes). Review — exact same logical op on different paths is a real bug.');
-if (epNetOnly.length) console.log(`\n  .NET-only paths:\n    ${epNetOnly.join('\n    ')}`);
-if (epJsOnly.length) console.log(`\n  JS-only paths:\n    ${epJsOnly.join('\n    ')}`);
-if (!epNetOnly.length && !epJsOnly.length) console.log('  ✓ endpoint sets match');
+if (!QUIET) {
+  console.log('\n=== Endpoint paths (heuristic report) ===');
+  console.log(`  .NET: ${netEp.size}   JS: ${jsEp.size}`);
+  console.log('  Note: one-sided entries may be legitimate (e.g. admin-only or server-only');
+  console.log('  routes). Review — exact same logical op on different paths is a real bug.');
+  if (epNetOnly.length) console.log(`\n  .NET-only paths:\n    ${epNetOnly.join('\n    ')}`);
+  if (epJsOnly.length) console.log(`\n  JS-only paths:\n    ${epJsOnly.join('\n    ')}`);
+  if (!epNetOnly.length && !epJsOnly.length) console.log('  ✓ endpoint sets match');
+}
 
 // Hard-fail only on the precise check (storage keys). Endpoints are advisory.
 process.exit(keysOk ? 0 : 1);
