@@ -1,0 +1,49 @@
+name: Parity Check
+
+# Guards cross-stack parity (localStorage keys + endpoint report) between the
+# .NET and JS implementations. The check needs all three repos checked out.
+#
+# Triggers:
+#  - push / PR to this (Sync) repo
+#  - daily schedule, so drift introduced by a push to the .NET or JS repos
+#    (which don't trigger this workflow) is still caught within a day
+#  - manual (workflow_dispatch)
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * *' # 06:00 UTC daily
+  workflow_dispatch:
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Sync (this repo, has the script)
+        uses: actions/checkout@v4
+        with:
+          path: sync
+
+      # WildwoodComponents.Net and .JS are public, so no token is needed.
+      - name: Checkout .NET
+        uses: actions/checkout@v4
+        with:
+          repository: WildwoodWorks/WildwoodComponents.Net
+          path: net
+
+      - name: Checkout JS
+        uses: actions/checkout@v4
+        with:
+          repository: WildwoodWorks/WildwoodComponents.JS
+          path: js
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # net/ and js/ are the repo roots (the .git lives at the Dev level), i.e.
+      # net/WildwoodComponents.Blazor/... and js/packages/... — pass them directly.
+      - name: Run parity check
+        run: node sync/scripts/parity-check.mjs net js
