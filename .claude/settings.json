@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Set-Location *; git status*)",
+      "PowerShell(Set-Location *; git log*)",
+      "PowerShell(Set-Location *; git show*)",
+      "PowerShell(Set-Location *; dotnet build*)",
+      "PowerShell(Set-Location *; dotnet test*)",
+      "PowerShell(Set-Location *; pnpm -r build*)",
+      "PowerShell(Set-Location *; pnpm -r test*)",
+      "PowerShell(Set-Location *; pnpm build*)",
+      "PowerShell(Set-Location *; pnpm test*)",
+      "PowerShell(Set-Location *; pnpm -r --filter *)"
+    ]
+  }
+}
