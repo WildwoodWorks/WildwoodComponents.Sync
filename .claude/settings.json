@@ -10,7 +10,16 @@
       "PowerShell(Set-Location *; pnpm -r test*)",
       "PowerShell(Set-Location *; pnpm build*)",
       "PowerShell(Set-Location *; pnpm test*)",
-      "PowerShell(Set-Location *; pnpm -r --filter *)"
+      "PowerShell(Set-Location *; pnpm -r --filter *)",
+      "Bash(git -C *)",
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git show*)",
+      "Bash(git diff*)",
+      "Bash(git branch*)",
+      "Bash(git fetch*)",
+      "Bash(git remote*)",
+      "Bash(git rev-parse*)"
     ]
   }
 }
