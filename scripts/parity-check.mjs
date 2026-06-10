@@ -22,7 +22,7 @@ const positional = argv.filter((a) => !a.startsWith('-'));
 const NET_ROOT = positional[0] ?? 'C:/Development/WildwoodComponents.Net/Dev';
 const JS_ROOT = positional[1] ?? 'C:/Development/WildwoodComponents.JS/Dev';
 
-const IGNORE = new Set(['node_modules', 'bin', 'obj', 'dist', '.git', '.vs']);
+const IGNORE = new Set(['node_modules', 'bin', 'obj', 'dist', '.git', '.vs', '__tests__']);
 
 function walk(dir, exts) {
   let files = [];
@@ -68,6 +68,9 @@ const KNOWN_ROOTS = [
   'notifications', 'disclaimers', 'disclaimeracceptance', 'payment',
   'paymenttransactions', 'twofactor', 'webauthn', 'userregistration',
   'registrationtokens', 'appcomponentconfigurations', 'users',
+  // 'subscription' has NO backend controller — the legacy SubscriptionService
+  // was deleted from both stacks (June 2026); any hit here is a regression.
+  'subscription',
 ];
 
 function normEndpoint(p) {
@@ -76,7 +79,9 @@ function normEndpoint(p) {
     .replace(/\{[^}]*\}/g, '{}') //   .NET interpolation / route tokens
     .replace(/\?.*$/, '') //          query string
     .replace(/^\/+/, '') //           leading slash
+    .replace(/^\{\}\//, '') //        interpolated base-url prefix ($"{_apiBaseUrl}/...")
     .replace(/^api\//, '') //         api/ prefix (.NET base addr already has it)
+    .replace(/([^/])\{\}$/, '$1') //  trailing same-segment interpolation (`sessions${qs}`)
     .replace(/\/+$/, '') //           trailing slash
     .toLowerCase();
   return s;
@@ -96,10 +101,12 @@ function endpoints(text, regexes) {
 }
 
 const JS_EP = [
-  /\.(?:get|post|put|delete|patch)\s*(?:<[^>]*>)?\(\s*[`'"]([^`'"]+)[`'"]/g,
+  // `<(?:[^<>]|<[^<>]*>)*>` tolerates one level of nested generics (e.g. get<Record<string, boolean>>)
+  /\.(?:get|post|put|delete|patch)\s*(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*[`'"]([^`'"]+)[`'"]/g,
+  /\bpostChat\s*\(\s*[`'"]([^`'"]+)[`'"]/g, // aiService chat helper
 ];
 const NET_EP = [
-  /(?:PostAsync|GetAsync|PutAsync|DeleteAsync|PatchAsync|GetFromJsonAsync|PostAsJsonAsync|PutAsJsonAsync|BuildUrl|SendAsync)\s*(?:<[^>]*>)?\(\s*\$?[`"]([^"`]+)[`"]/g,
+  /(?:PostAsync|GetAsync|PutAsync|DeleteAsync|PatchAsync|GetFromJsonAsync|PostAsJsonAsync|PutAsJsonAsync|BuildUrl|SendAsync|PostChatAsync|PostChatWithFileAsync)\s*(?:<[^>]*>)?\(\s*\$?[`"]([^"`]+)[`"]/g,
 ];
 
 function diff(a, b) {

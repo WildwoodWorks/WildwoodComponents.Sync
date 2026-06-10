@@ -25,14 +25,14 @@ Self-contained .NET solution with its own internal shared library:
 
 ```
 WildwoodComponents.Shared        ← .NET shared library: models, DTOs, utilities
-  ├─► WildwoodComponents.Blazor  ← Blazor interactive components (29 components)
-  └─► WildwoodComponents.Razor   ← Razor ViewComponents for MVC (30 components)
+  ├─► WildwoodComponents.Blazor  ← Blazor interactive components (27 components)
+  └─► WildwoodComponents.Razor   ← Razor ViewComponents for MVC (28 components)
 ```
 
 - **WildwoodComponents.Shared** is the .NET-internal shared library. It holds models (`AppTierModels`, `WildwoodAuthModels`, `PaymentProviderModels`, etc.), utilities (`FormatHelpers`, `TokenExpiryParser`, `SessionConstants`), and is consumed by both Blazor and Razor projects within the .NET solution.
 - **WildwoodComponents.Blazor** has its own services layer, base component class (`BaseWildwoodComponent`), JS interop scripts, and payment script providers.
 - **WildwoodComponents.Razor** has its own services layer (server-side HTTP calls), ViewComponent classes, Razor views, cookie auth helpers, and middleware.
-- **Test Suite**: `WildwoodComponentsTestSuiteBlazor` — Blazor web app with 25 test pages.
+- **Test Suite**: `WildwoodComponentsTestSuiteBlazor` — Blazor web app with 23 test pages.
 
 ### JS Architecture (WildwoodComponents.JS)
 
@@ -41,17 +41,17 @@ Self-contained pnpm monorepo with its own internal shared library:
 ```
 @wildwood/core                   ← JS shared library: services, types, utilities (framework-agnostic TS)
   ├─► @wildwood/react-shared     ← Shared React hooks (business logic, no UI)
-  │     ├─► @wildwood/react      ← React components + hooks (59 components, 20 hooks)
-  │     └─► @wildwood/react-native ← React Native components (31 components)
+  │     ├─► @wildwood/react      ← React components + hooks (57 components, 19 hooks)
+  │     └─► @wildwood/react-native ← React Native components (29 components)
   └─► @wildwood/node             ← Node.js/Express middleware + admin client
 ```
 
-- **@wildwood/core** is the JS-internal shared library. Pure TypeScript, zero UI dependencies. Contains `AuthService`, `AIService`, `MessagingService`, `PaymentService`, `SubscriptionService`, `TwoFactorService`, `CaptchaService`, `AppTierService`, `DisclaimerService`, `NotificationService`, `ThemeService`, `WildwoodEventEmitter`, `WildwoodClient`, and all shared types. Consumed by all other JS packages.
-- **@wildwood/react-shared** holds 22 hooks with pure business logic (no UI) shared between React web and React Native.
+- **@wildwood/core** is the JS-internal shared library. Pure TypeScript, zero UI dependencies. Contains `AuthService`, `AIService`, `MessagingService`, `PaymentService`, `TwoFactorService`, `CaptchaService`, `AppTierService`, `DisclaimerService`, `NotificationService`, `ThemeService`, `WildwoodEventEmitter`, `WildwoodClient`, and all shared types. Consumed by all other JS packages.
+- **@wildwood/react-shared** holds 21 hooks with pure business logic (no UI) shared between React web and React Native.
 - **@wildwood/react** wraps core services with React components and re-exports shared hooks.
 - **@wildwood/react-native** provides native mobile components using the same shared hooks.
 - **@wildwood/node** provides Express middleware (`authMiddleware`, `rateLimitMiddleware`, `proxyMiddleware`) and `adminClient` for server-to-server operations.
-- **Test Suite**: `WildwoodComponentsTestSuite.React` — Vite + React app with 15 test pages.
+- **Test Suite**: `WildwoodComponentsTestSuite.React` — Vite + React app with 13 test pages.
 
 ### Shared Library Equivalence
 
@@ -65,12 +65,12 @@ Each project has its own shared library serving the same purpose within its tech
 | `WildwoodComponents.Razor` | `@wildwood/react-native` | Alternative platform components |
 | (no equivalent) | `@wildwood/node` | Server-side SDK |
 
-## Component Inventory (26 components at parity)
+## Component Inventory (23 components at parity)
 
 Both .NET and JS implement these components:
-- **AI**: AIChatComponent, AIFlowComponent, AIProxyComponent
+- **AI**: AIChatComponent, AIProxyComponent
 - **Auth**: AuthenticationComponent, TokenRegistrationComponent, SignupWithSubscriptionComponent
-- **Subscriptions**: SubscriptionComponent, SubscriptionManagerComponent, SubscriptionAdminComponent (+ 6 admin sub-panels: StatusPanel, TierPlansPanel, FeaturesPanel, AddOnsPanel, UsageLimitsPanel, OverridesPanel)
+- **Subscriptions**: SubscriptionAdminComponent (+ 6 admin sub-panels: StatusPanel, TierPlansPanel, FeaturesPanel, AddOnsPanel, UsageLimitsPanel, OverridesPanel) — tier-based; the legacy SubscriptionComponent/SubscriptionManagerComponent were removed June 2026 (they targeted a nonexistent `api/subscription/*` backend)
 - **Payment**: PaymentComponent, PaymentFormComponent
 - **Pricing/Tiers**: PricingDisplayComponent, AppTierComponent
 - **Security**: TwoFactorSettingsComponent
