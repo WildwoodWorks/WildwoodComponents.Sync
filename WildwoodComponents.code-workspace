@@ -10,6 +10,9 @@
       "path": "../WildwoodComponents.Net/Dev"
     },
     {
+      "path": "../WildwoodComponents.Swift/Dev"
+    },
+    {
       "path": "../WildwoodComponents.AITools/Dev/WildwoodComponents.Claude"
     }
   ],

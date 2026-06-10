@@ -39,11 +39,18 @@ jobs:
           repository: WildwoodWorks/WildwoodComponents.JS
           path: js
 
+      - name: Checkout Swift
+        uses: actions/checkout@v4
+        with:
+          repository: WildwoodWorks/WildwoodComponents.Swift
+          path: swift
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # net/ and js/ are the repo roots (the .git lives at the Dev level), i.e.
-      # net/WildwoodComponents.Blazor/... and js/packages/... — pass them directly.
+      # net/, js/, and swift/ are the repo roots (the .git lives at the Dev
+      # level), i.e. net/WildwoodComponents.Blazor/..., js/packages/...,
+      # swift/Sources/... — pass them directly.
       - name: Run parity check
-        run: node sync/scripts/parity-check.mjs net js
+        run: node sync/scripts/parity-check.mjs net js swift

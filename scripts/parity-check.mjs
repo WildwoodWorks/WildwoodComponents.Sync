@@ -2,16 +2,16 @@
 /**
  * WildwoodComponents parity check.
  *
- * Guards the two "must-match" parity dimensions between the .NET and JS stacks:
- *   1. Browser localStorage key names  (HARD CHECK — exits non-zero on mismatch)
+ * Guards the two "must-match" parity dimensions between the .NET, JS, and Swift stacks:
+ *   1. Storage key names (ww_ prefix)   (HARD CHECK — exits non-zero on mismatch)
  *   2. Backend API endpoint paths       (REPORT — heuristic, printed for review)
  *
  * Run:  node scripts/parity-check.mjs
- * Optionally override repo roots:  node scripts/parity-check.mjs <netDevRoot> <jsDevRoot>
+ * Optionally override repo roots:  node scripts/parity-check.mjs <netDevRoot> <jsDevRoot> <swiftDevRoot>
  * Quiet mode (storage-key result only; used by git hooks):  add --quiet
  *
- * It would have caught the drift fixed in May 2026 (cancel-endpoint mismatch,
- * unprefixed localStorage keys). Wire it into CI / a pre-commit hook.
+ * The Swift repo is optional: when its root is absent the check runs 2-way
+ * (.NET + JS) so the script stays usable on checkouts without the Swift tree.
  */
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, extname } from 'node:path';
@@ -21,8 +21,13 @@ const QUIET = argv.includes('--quiet') || argv.includes('-q');
 const positional = argv.filter((a) => !a.startsWith('-'));
 const NET_ROOT = positional[0] ?? 'C:/Development/WildwoodComponents.Net/Dev';
 const JS_ROOT = positional[1] ?? 'C:/Development/WildwoodComponents.JS/Dev';
+const SWIFT_ROOT = positional[2] ?? 'C:/Development/WildwoodComponents.Swift/Dev';
 
-const IGNORE = new Set(['node_modules', 'bin', 'obj', 'dist', '.git', '.vs', '__tests__']);
+const IGNORE = new Set([
+  'node_modules', 'bin', 'obj', 'dist', '.git', '.vs', '__tests__',
+  // Swift build output and test sources (Tests mirrors the __tests__ exclusion)
+  '.build', '.swiftpm', 'DerivedData', 'Tests',
+]);
 
 function walk(dir, exts) {
   let files = [];
@@ -75,6 +80,7 @@ const KNOWN_ROOTS = [
 
 function normEndpoint(p) {
   let s = p
+    .replace(/\\\((?:[^()]|\([^()]*\))*\)/g, '{}') // Swift interpolation \(expr) (one nesting level)
     .replace(/\$\{[^}]*\}/g, '{}') // JS interpolation
     .replace(/\{[^}]*\}/g, '{}') //   .NET interpolation / route tokens
     .replace(/\?.*$/, '') //          query string
@@ -108,6 +114,12 @@ const JS_EP = [
 const NET_EP = [
   /(?:PostAsync|GetAsync|PutAsync|DeleteAsync|PatchAsync|GetFromJsonAsync|PostAsJsonAsync|PutAsJsonAsync|BuildUrl|SendAsync|PostChatAsync|PostChatWithFileAsync)\s*(?:<[^>]*>)?\(\s*\$?[`"]([^"`]+)[`"]/g,
 ];
+const SWIFT_EP = [
+  // WildwoodHttpClient verb methods; longest alternatives first so e.g. postVoid
+  // isn't half-matched as post. Literals may contain \(interpolation).
+  /\.(?:getData|postData|postMultipart|postVoid|putVoid|deleteVoid|get|post|put|delete|patch)\s*\(\s*"([^"]+)"/g,
+  /\bpostChat\s*\(\s*"([^"]+)"/g, // AIService chat helper (mirrors the JS postChat rule)
+];
 
 function diff(a, b) {
   return [...a].filter((x) => !b.has(x)).sort();
@@ -118,35 +130,53 @@ if (!existsSync(NET_ROOT) || !existsSync(JS_ROOT)) {
   console.error(`✗ Repo root not found.\n  .NET: ${NET_ROOT}\n  JS:   ${JS_ROOT}`);
   process.exit(2);
 }
+const HAS_SWIFT = existsSync(SWIFT_ROOT);
+if (!HAS_SWIFT && !QUIET) {
+  console.log(`(Swift root not found at ${SWIFT_ROOT} — running 2-way .NET/JS check)\n`);
+}
 
 const netCs = readAll(NET_ROOT, ['.cs']);
 const jsTs = readAll(JS_ROOT, ['.ts', '.tsx']);
+const swiftSrc = HAS_SWIFT ? readAll(SWIFT_ROOT, ['.swift']) : '';
 
-const netKeys = wwKeys(netCs, NET_NON_LOCALSTORAGE);
-const jsKeys = wwKeys(jsTs);
-const keyNetOnly = diff(netKeys, jsKeys);
-const keyJsOnly = diff(jsKeys, netKeys);
+// [stackName, keySet, endpointSet]
+const stacks = [
+  ['.NET', wwKeys(netCs, NET_NON_LOCALSTORAGE), endpoints(netCs, NET_EP)],
+  ['JS', wwKeys(jsTs), endpoints(jsTs, JS_EP)],
+];
+if (HAS_SWIFT) {
+  stacks.push(['Swift', wwKeys(swiftSrc), endpoints(swiftSrc, SWIFT_EP)]);
+}
 
-const netEp = endpoints(netCs, NET_EP);
-const jsEp = endpoints(jsTs, JS_EP);
-const epNetOnly = diff(netEp, jsEp);
-const epJsOnly = diff(jsEp, netEp);
+const keyUnion = new Set(stacks.flatMap(([, keys]) => [...keys]));
+let keysOk = true;
 
 console.log('=== Storage keys (ww_) ===');
-console.log(`  .NET: ${netKeys.size}   JS: ${jsKeys.size}`);
-if (keyNetOnly.length) console.log(`  ✗ .NET only: ${keyNetOnly.join(', ')}`);
-if (keyJsOnly.length) console.log(`  ✗ JS only:   ${keyJsOnly.join(', ')}`);
-const keysOk = keyNetOnly.length === 0 && keyJsOnly.length === 0;
+console.log(`  ${stacks.map(([name, keys]) => `${name}: ${keys.size}`).join('   ')}`);
+for (const [name, keys] of stacks) {
+  const missing = diff(keyUnion, keys);
+  if (missing.length) {
+    keysOk = false;
+    console.log(`  ✗ missing in ${name}: ${missing.join(', ')}`);
+  }
+}
 console.log(keysOk ? '  ✓ storage keys aligned' : '  ✗ STORAGE KEY MISMATCH');
 
 if (!QUIET) {
   console.log('\n=== Endpoint paths (heuristic report) ===');
-  console.log(`  .NET: ${netEp.size}   JS: ${jsEp.size}`);
+  console.log(`  ${stacks.map(([name, , ep]) => `${name}: ${ep.size}`).join('   ')}`);
   console.log('  Note: one-sided entries may be legitimate (e.g. admin-only or server-only');
   console.log('  routes). Review — exact same logical op on different paths is a real bug.');
-  if (epNetOnly.length) console.log(`\n  .NET-only paths:\n    ${epNetOnly.join('\n    ')}`);
-  if (epJsOnly.length) console.log(`\n  JS-only paths:\n    ${epJsOnly.join('\n    ')}`);
-  if (!epNetOnly.length && !epJsOnly.length) console.log('  ✓ endpoint sets match');
+  const epUnion = new Set(stacks.flatMap(([, , ep]) => [...ep]));
+  let epAligned = true;
+  for (const [name, , ep] of stacks) {
+    const missing = diff(epUnion, ep);
+    if (missing.length) {
+      epAligned = false;
+      console.log(`\n  Missing from ${name} (present in another stack):\n    ${missing.join('\n    ')}`);
+    }
+  }
+  if (epAligned) console.log('  ✓ endpoint sets match');
 }
 
 // Hard-fail only on the precise check (storage keys). Endpoints are advisory.

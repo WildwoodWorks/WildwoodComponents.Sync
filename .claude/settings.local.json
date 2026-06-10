@@ -2,7 +2,8 @@
   "permissions": {
     "additionalDirectories": [
       "C:\\Development\\WildwoodComponents.Net\\Dev",
-      "C:\\Development\\WildwoodComponents.JS\\Dev"
+      "C:\\Development\\WildwoodComponents.JS\\Dev",
+      "C:\\Development\\WildwoodComponents.Swift\\Dev"
     ]
   }
 }
