@@ -22,25 +22,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Sync (this repo, has the script)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: sync
 
       # WildwoodComponents.Net and .JS are public, so no token is needed.
       - name: Checkout .NET
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: WildwoodWorks/WildwoodComponents.Net
           path: net
 
       - name: Checkout JS
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: WildwoodWorks/WildwoodComponents.JS
           path: js
 
       - name: Checkout Swift
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: WildwoodWorks/WildwoodComponents.Swift
           path: swift
