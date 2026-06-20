@@ -57,6 +57,11 @@ function readAll(root, exts) {
 // localStorage parity check stays precise.
 const NET_NON_LOCALSTORAGE = new Set(['ww_access_token', 'ww_refresh_token', 'ww_token_expiry']);
 
+// First-party COOKIE names (not browser localStorage keys) that are managed in JS for every web
+// host and have no native/Swift counterpart. Excluded from all stacks so the localStorage parity
+// check stays precise. ww_consent is the Consent SDK's first-party consent cookie.
+const COOKIE_NAMES = new Set(['ww_consent']);
+
 function wwKeys(text, exclude = new Set()) {
   const set = new Set();
   const re = /['"`](ww_[a-zA-Z0-9_]+)['"`]/g;
@@ -141,11 +146,11 @@ const swiftSrc = HAS_SWIFT ? readAll(SWIFT_ROOT, ['.swift']) : '';
 
 // [stackName, keySet, endpointSet]
 const stacks = [
-  ['.NET', wwKeys(netCs, NET_NON_LOCALSTORAGE), endpoints(netCs, NET_EP)],
-  ['JS', wwKeys(jsTs), endpoints(jsTs, JS_EP)],
+  ['.NET', wwKeys(netCs, new Set([...NET_NON_LOCALSTORAGE, ...COOKIE_NAMES])), endpoints(netCs, NET_EP)],
+  ['JS', wwKeys(jsTs, COOKIE_NAMES), endpoints(jsTs, JS_EP)],
 ];
 if (HAS_SWIFT) {
-  stacks.push(['Swift', wwKeys(swiftSrc), endpoints(swiftSrc, SWIFT_EP)]);
+  stacks.push(['Swift', wwKeys(swiftSrc, COOKIE_NAMES), endpoints(swiftSrc, SWIFT_EP)]);
 }
 
 const keyUnion = new Set(stacks.flatMap(([, keys]) => [...keys]));

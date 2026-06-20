@@ -67,7 +67,7 @@ WildwoodCore                     ← Swift shared library: services, models, ses
 
 - **WildwoodCore** mirrors `@wildwood/core` method-for-method: `WildwoodClient` factory exposing `auth`, `session`, `ai`, `messaging`, `payment`, `appTier`, `twoFactor`, `captcha`, `disclaimer`, `feedback`, `notifications`, `theme`, `events`, `http`. Swift 6 strict concurrency: `WildwoodHttpClient` is an actor; `SessionManager`/`NotificationService`/`ThemeService` are `@MainActor @Observable`. Tokens go to the Keychain, other `ww_` keys to UserDefaults (CompositeStorage).
 - **Payments are processor-agnostic**: provider selection is backend-driven via `PlatformFilteredProvidersDto`; the App Store path runs StoreKit 2 and validates JWS against `api/payment/validate-apple-receipt`, others use generic `initiatePayment`/`confirmPayment` with web checkout — all payment/subscription state remains in Wildwood.
-- **Test Suite**: `WildwoodComponentsTestSuite.iOS` — XcodeGen-defined SwiftUI app with 17 test screens (`project.yml` checked in, `.xcodeproj` generated on a Mac).
+- **Test Suite**: `WildwoodComponentsTestSuite.iOS` — XcodeGen-defined SwiftUI app with 18 test screens (`project.yml` checked in, `.xcodeproj` generated on a Mac).
 - iOS 26 minimum deployment; iOS 27 features behind `@available(iOS 27, *)`. Builds/tests require macOS (Xcode 27 beta); code can be authored on Windows.
 
 ### Shared Library Equivalence
@@ -82,7 +82,7 @@ Each project has its own shared library serving the same purpose within its tech
 | `WildwoodComponents.Razor` | `@wildwood/react-native` | (single UI framework) | Alternative platform components |
 | (no equivalent) | `@wildwood/node` | (no equivalent) | Server-side SDK |
 
-## Component Inventory (23 components at parity)
+## Component Inventory (25 components at parity)
 
 All three stacks implement these components:
 - **AI**: AIChatComponent, AIProxyComponent
@@ -94,7 +94,8 @@ All three stacks implement these components:
 - **Messaging**: SecureMessagingComponent
 - **Notifications**: NotificationComponent, NotificationToastComponent
 - **Usage**: UsageDashboardComponent, OverageSummaryComponent
-- **Legal**: DisclaimerComponent
+- **Legal**: DisclaimerComponent, ConsentComponent
+- **Feedback**: FeedbackComponent
 
 ## Commands
 
