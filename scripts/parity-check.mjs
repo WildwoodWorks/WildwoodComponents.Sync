@@ -27,6 +27,9 @@ const IGNORE = new Set([
   'node_modules', 'bin', 'obj', 'dist', '.git', '.vs', '__tests__',
   // Swift build output and test sources (Tests mirrors the __tests__ exclusion)
   '.build', '.swiftpm', 'DerivedData', 'Tests',
+  // JS e2e specs use route-name literals ('messaging', 'subscription') that are
+  // not endpoints — excluding them keeps the generic literal extraction precise.
+  'e2e',
 ]);
 
 function walk(dir, exts) {
@@ -40,8 +43,16 @@ function walk(dir, exts) {
   for (const e of entries) {
     if (IGNORE.has(e.name)) continue;
     const p = join(dir, e.name);
-    if (e.isDirectory()) files = files.concat(walk(p, exts));
-    else if (exts.includes(extname(e.name))) files.push(p);
+    // Test projects assert on endpoint strings with fixture ids ('app-tiers/app-1') —
+    // exclude *.Tests dirs (e.g. WildwoodComponents.Tests) like __tests__/Tests.
+    if (e.isDirectory()) {
+      if (!e.name.endsWith('.Tests')) files = files.concat(walk(p, exts));
+    }
+    // Storybook titles ('ai/AIChatComponent') and test/spec fixture literals look
+    // like endpoint paths — skip those files.
+    else if (exts.includes(extname(e.name)) && !/\.(stories|test|spec)\./.test(e.name)) {
+      files.push(p);
+    }
   }
   return files;
 }
@@ -111,32 +122,35 @@ function endpoints(text, regexes) {
   return set;
 }
 
+// Generic endpoint-literal extraction: any quoted single-line literal that is an API
+// path rooted at a known controller root (optionally 'api/'-prefixed), regardless of
+// the call-site idiom. This catches URL shapes no per-callsite regex anticipates —
+// ternaries picking an endpoint into a const, helper-function arguments, `url =`
+// assemblies — which previously went silently missing from the report (e.g. JS
+// payment/validate-apple-receipt behind a ternary). A '/' after the root is required
+// so bare route names ('messaging') and view-state strings ('disclaimers') don't
+// match; whitespace is excluded so quoted prose and multi-line templates don't.
+const ROOT_ALT = KNOWN_ROOTS.join('|');
+const GENERIC_LITERAL = (quotes) =>
+  // Case-insensitive: some stacks write PascalCase roots ('api/AppComponentConfigurations/…');
+  // normEndpoint lowercases afterwards, so matching must not be stricter than normalization.
+  new RegExp(`[${quotes}](/?(?:api/)?(?:${ROOT_ALT})/[^${quotes}\\s]+)[${quotes}]`, 'gi');
+
 const JS_EP = [
-  // `<(?:[^<>]|<[^<>]*>)*>` tolerates one level of nested generics (e.g. get<Record<string, boolean>>)
-  /\.(?:get|post|put|delete|patch)\s*(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*[`'"]([^`'"]+)[`'"]/g,
-  /\bpostChat\s*\(\s*[`'"]([^`'"]+)[`'"]/g, // aiService chat helper
-  /\bpostCancel\s*\(\s*[`'"]([^`'"]+)[`'"]/g, // appTierService shared cancel helper
-  // AIFlowService's fetch transport builds URLs as `${this.apiBase(options)}/...` template
-  // literals (SSE needs a raw stream, so it bypasses the shared HttpClient verbs).
+  GENERIC_LITERAL("`'\""),
+  // Interpolated-prefix URLs the generic rule can't anchor: AIFlowService's fetch
+  // transport builds `${this.apiBase(options)}/ai/flows...` template literals
+  // (SSE needs a raw stream, so it bypasses the shared HttpClient verbs).
   /[`]\$\{this\.apiBase\((?:[^()]|\([^()]*\))*\)\}(\/[^`]+)[`]/g,
-  // URLs assembled into a variable before the request (e.g. messagingService's
-  // searchMessages builds `let url = \`api/messaging/search?...\`` then http.get(url)).
-  /\burl\s*=\s*[`'"]([^`'"]+)[`'"]/g,
 ];
 const NET_EP = [
-  /(?:PostAsync|GetAsync|PutAsync|DeleteAsync|PatchAsync|GetFromJsonAsync|PostAsJsonAsync|PutAsJsonAsync|BuildUrl|SendAsync|PostChatAsync|PostChatWithFileAsync)\s*(?:<[^>]*>)?\(\s*\$?[`"]([^"`]+)[`"]/g,
-  // URLs assembled into a variable before the request (e.g. AIFlowService's SSE
-  // stream/resume: `var url = $"{_apiBaseUrl}/ai/flows/..."` then SendAsync(request)).
-  /\burl\s*=\s*\$"([^"]+)"/g,
+  GENERIC_LITERAL('"'),
+  // Interpolated-prefix URLs the generic rule can't anchor, e.g.
+  // `$"{_apiBaseUrl}/ai/flows/..."` (verb-call or `var url =` alike).
+  /\$"\{[^}]*\}(\/[^"\s]+)"/g,
 ];
 const SWIFT_EP = [
-  // WildwoodHttpClient verb methods; longest alternatives first so e.g. postVoid
-  // isn't half-matched as post. Literals may contain \(interpolation).
-  /\.(?:getData|postData|postMultipart|postVoid|putVoid|deleteVoid|get|post|put|delete|patch)\s*\(\s*"([^"]+)"/g,
-  /\bpostChat\s*\(\s*"([^"]+)"/g, // AIService chat helper (mirrors the JS postChat rule)
-  // URLs assembled into a variable before the request (mirrors the .NET/JS rule;
-  // e.g. MessagingService's `var url = "api/messaging/search?..."`).
-  /\burl\s*=\s*"([^"]+)"/g,
+  GENERIC_LITERAL('"'),
 ];
 
 function diff(a, b) {
