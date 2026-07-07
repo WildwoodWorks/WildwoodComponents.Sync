@@ -115,15 +115,28 @@ const JS_EP = [
   // `<(?:[^<>]|<[^<>]*>)*>` tolerates one level of nested generics (e.g. get<Record<string, boolean>>)
   /\.(?:get|post|put|delete|patch)\s*(?:<(?:[^<>]|<[^<>]*>)*>)?\(\s*[`'"]([^`'"]+)[`'"]/g,
   /\bpostChat\s*\(\s*[`'"]([^`'"]+)[`'"]/g, // aiService chat helper
+  /\bpostCancel\s*\(\s*[`'"]([^`'"]+)[`'"]/g, // appTierService shared cancel helper
+  // AIFlowService's fetch transport builds URLs as `${this.apiBase(options)}/...` template
+  // literals (SSE needs a raw stream, so it bypasses the shared HttpClient verbs).
+  /[`]\$\{this\.apiBase\((?:[^()]|\([^()]*\))*\)\}(\/[^`]+)[`]/g,
+  // URLs assembled into a variable before the request (e.g. messagingService's
+  // searchMessages builds `let url = \`api/messaging/search?...\`` then http.get(url)).
+  /\burl\s*=\s*[`'"]([^`'"]+)[`'"]/g,
 ];
 const NET_EP = [
   /(?:PostAsync|GetAsync|PutAsync|DeleteAsync|PatchAsync|GetFromJsonAsync|PostAsJsonAsync|PutAsJsonAsync|BuildUrl|SendAsync|PostChatAsync|PostChatWithFileAsync)\s*(?:<[^>]*>)?\(\s*\$?[`"]([^"`]+)[`"]/g,
+  // URLs assembled into a variable before the request (e.g. AIFlowService's SSE
+  // stream/resume: `var url = $"{_apiBaseUrl}/ai/flows/..."` then SendAsync(request)).
+  /\burl\s*=\s*\$"([^"]+)"/g,
 ];
 const SWIFT_EP = [
   // WildwoodHttpClient verb methods; longest alternatives first so e.g. postVoid
   // isn't half-matched as post. Literals may contain \(interpolation).
   /\.(?:getData|postData|postMultipart|postVoid|putVoid|deleteVoid|get|post|put|delete|patch)\s*\(\s*"([^"]+)"/g,
   /\bpostChat\s*\(\s*"([^"]+)"/g, // AIService chat helper (mirrors the JS postChat rule)
+  // URLs assembled into a variable before the request (mirrors the .NET/JS rule;
+  // e.g. MessagingService's `var url = "api/messaging/search?..."`).
+  /\burl\s*=\s*"([^"]+)"/g,
 ];
 
 function diff(a, b) {

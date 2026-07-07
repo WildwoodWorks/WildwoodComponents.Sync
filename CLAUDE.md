@@ -26,14 +26,14 @@ Self-contained .NET solution with its own internal shared library:
 
 ```
 WildwoodComponents.Shared        ← .NET shared library: models, DTOs, utilities
-  ├─► WildwoodComponents.Blazor  ← Blazor interactive components (27 components)
-  └─► WildwoodComponents.Razor   ← Razor ViewComponents for MVC (28 components)
+  ├─► WildwoodComponents.Blazor  ← Blazor interactive components (29 components)
+  └─► WildwoodComponents.Razor   ← Razor ViewComponents for MVC (29 components)
 ```
 
 - **WildwoodComponents.Shared** is the .NET-internal shared library. It holds models (`AppTierModels`, `WildwoodAuthModels`, `PaymentProviderModels`, etc.), utilities (`FormatHelpers`, `TokenExpiryParser`, `SessionConstants`), and is consumed by both Blazor and Razor projects within the .NET solution.
 - **WildwoodComponents.Blazor** has its own services layer, base component class (`BaseWildwoodComponent`), JS interop scripts, and payment script providers.
 - **WildwoodComponents.Razor** has its own services layer (server-side HTTP calls), ViewComponent classes, Razor views, cookie auth helpers, and middleware.
-- **Test Suite**: `WildwoodComponentsTestSuiteBlazor` — Blazor web app with 23 test pages.
+- **Test Suite**: `WildwoodComponentsTestSuiteBlazor` — Blazor web app with 24 test pages.
 
 ### JS Architecture (WildwoodComponents.JS)
 
@@ -42,17 +42,17 @@ Self-contained pnpm monorepo with its own internal shared library:
 ```
 @wildwood/core                   ← JS shared library: services, types, utilities (framework-agnostic TS)
   ├─► @wildwood/react-shared     ← Shared React hooks (business logic, no UI)
-  │     ├─► @wildwood/react      ← React components + hooks (57 components, 19 hooks)
-  │     └─► @wildwood/react-native ← React Native components (29 components)
+  │     ├─► @wildwood/react      ← React components + hooks (59 components, 21 hooks)
+  │     └─► @wildwood/react-native ← React Native components (31 components)
   └─► @wildwood/node             ← Node.js/Express middleware + admin client
 ```
 
 - **@wildwood/core** is the JS-internal shared library. Pure TypeScript, zero UI dependencies. Contains `AuthService`, `AIService`, `MessagingService`, `PaymentService`, `TwoFactorService`, `CaptchaService`, `AppTierService`, `DisclaimerService`, `NotificationService`, `ThemeService`, `WildwoodEventEmitter`, `WildwoodClient`, and all shared types. Consumed by all other JS packages.
-- **@wildwood/react-shared** holds 21 hooks with pure business logic (no UI) shared between React web and React Native.
+- **@wildwood/react-shared** holds 23 hooks with pure business logic (no UI) shared between React web and React Native.
 - **@wildwood/react** wraps core services with React components and re-exports shared hooks.
 - **@wildwood/react-native** provides native mobile components using the same shared hooks.
 - **@wildwood/node** provides Express middleware (`authMiddleware`, `rateLimitMiddleware`, `proxyMiddleware`) and `adminClient` for server-to-server operations.
-- **Test Suite**: `WildwoodComponentsTestSuite.React` — Vite + React app with 13 test pages.
+- **Test Suite**: `WildwoodComponentsTestSuite.React` — Vite + React app with 14 test pages.
 
 ### Swift Architecture (WildwoodComponents.Swift)
 
@@ -60,14 +60,14 @@ Self-contained SPM package (two products) with its own internal shared library:
 
 ```
 WildwoodCore                     ← Swift shared library: services, models, session/token mgmt (zero UI imports)
-  └─► WildwoodSwiftUI            ← SwiftUI components (29) + @Observable view models
+  └─► WildwoodSwiftUI            ← SwiftUI components (31) + @Observable view models
         ├─ ViewModels/           ← ≈ @wildwood/react-shared (no `import SwiftUI`)
         └─ Components/           ← ≈ @wildwood/react-native (iOS-gated)
 ```
 
 - **WildwoodCore** mirrors `@wildwood/core` method-for-method: `WildwoodClient` factory exposing `auth`, `session`, `ai`, `messaging`, `payment`, `appTier`, `twoFactor`, `captcha`, `disclaimer`, `feedback`, `notifications`, `theme`, `events`, `http`. Swift 6 strict concurrency: `WildwoodHttpClient` is an actor; `SessionManager`/`NotificationService`/`ThemeService` are `@MainActor @Observable`. Tokens go to the Keychain, other `ww_` keys to UserDefaults (CompositeStorage).
 - **Payments are processor-agnostic**: provider selection is backend-driven via `PlatformFilteredProvidersDto`; the App Store path runs StoreKit 2 and validates JWS against `api/payment/validate-apple-receipt`, others use generic `initiatePayment`/`confirmPayment` with web checkout — all payment/subscription state remains in Wildwood.
-- **Test Suite**: `WildwoodComponentsTestSuite.iOS` — XcodeGen-defined SwiftUI app with 18 test screens (`project.yml` checked in, `.xcodeproj` generated on a Mac).
+- **Test Suite**: `WildwoodComponentsTestSuite.iOS` — XcodeGen-defined SwiftUI app with 19 test screens (`project.yml` checked in, `.xcodeproj` generated on a Mac).
 - iOS 26 minimum deployment; iOS 27 features behind `@available(iOS 27, *)`. Builds/tests require macOS (Xcode 27 beta); code can be authored on Windows.
 
 ### Shared Library Equivalence
@@ -82,14 +82,15 @@ Each project has its own shared library serving the same purpose within its tech
 | `WildwoodComponents.Razor` | `@wildwood/react-native` | (single UI framework) | Alternative platform components |
 | (no equivalent) | `@wildwood/node` | (no equivalent) | Server-side SDK |
 
-## Component Inventory (25 components at parity)
+## Component Inventory (27 components at parity)
 
 All three stacks implement these components:
-- **AI**: AIChatComponent, AIProxyComponent
+- **AI**: AIChatComponent, AIProxyComponent, AIFlowComponent (July 2026 — app-facing "AI Flows with LangChain": SSE-streamed runs of published LangGraph flows with human-in-the-loop interrupts and run history; a NEW feature, unrelated to the obsolete AIFlow deleted May 2026)
 - **Auth**: AuthenticationComponent, TokenRegistrationComponent, SignupWithSubscriptionComponent
 - **Subscriptions**: SubscriptionAdminComponent (+ 6 admin sub-panels: StatusPanel, TierPlansPanel, FeaturesPanel, AddOnsPanel, UsageLimitsPanel, OverridesPanel) — tier-based; the legacy SubscriptionComponent/SubscriptionManagerComponent were removed June 2026 (they targeted a nonexistent `api/subscription/*` backend)
 - **Payment**: PaymentComponent, PaymentFormComponent
 - **Pricing/Tiers**: PricingDisplayComponent, AppTierComponent
+- **Feature gating**: FeatureGate (July 2026 — cached fail-open entitlement gate over `user-features`; React/RN components + `useFeatures`, Blazor `FeatureGateComponent` + `IFeatureEntitlementService`, Swift `FeatureGate` view + `FeatureStore`; Razor idiomatically uses server-side `HasFeatureAsync` in `@if` blocks instead of a ViewComponent)
 - **Security**: TwoFactorSettingsComponent
 - **Messaging**: SecureMessagingComponent
 - **Notifications**: NotificationComponent, NotificationToastComponent
