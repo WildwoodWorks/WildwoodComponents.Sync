@@ -135,6 +135,15 @@ const KNOWN_ROOTS = [
 //      .NET Razor (WildwoodRegistrationService) to prefetch rich token info for server-side page
 //      rendering. Blazor, JS, and Swift all use the lightweight boolean `validate-simple/{}` (at
 //      parity). This is an idiomatic divergence, not a client bug.
+//
+//   4. SERVER-ONLY SEEDER COMPONENT — `appcomponentconfigurations/{}/seeder-configuration`,
+//      `.../seeder/ledger`, `.../seeder/history` are the Seeder's ledger/history/config routes.
+//      The Seeder is a server-side app-data provisioning harness (CompanyAdmin service-account
+//      login, startup seeding) that ships in .NET `WildwoodComponents.Shared/Seeder` and JS
+//      `@wildwood/node` (the server SDK, alongside AdminClient). It has NO browser/mobile client
+//      counterpart — the Swift stack is a pure iOS client with no server host, the same reason
+//      `@wildwood/node` itself has no Swift equivalent. So these three routes are legitimately
+//      present in .NET + JS and absent from Swift. Not drift; a server-only component by design.
 
 // Normalized one-sided endpoints that are documented-benign per the cases above. The report
 // partitions these out of the "REVIEW" list so a genuine divergence stands out (they are still
@@ -152,6 +161,11 @@ const KNOWN_BENIGN_ONE_SIDED = new Set([
   'payment/process', 'payment/refund', 'payment/status/{}',
   // Razor server-render-only token-detail variant (others use validate-simple):
   'registrationtokens/validate-detailed/{}',
+  // Server-only Seeder component (.NET Shared + @wildwood/node); no Swift/iOS-client
+  // counterpart — same class as @wildwood/node having no Swift equivalent (case 4 above):
+  'appcomponentconfigurations/{}/seeder-configuration',
+  'appcomponentconfigurations/{}/seeder/ledger',
+  'appcomponentconfigurations/{}/seeder/history',
 ]);
 
 function normEndpoint(p) {
@@ -286,6 +300,8 @@ if (!QUIET) {
     console.log('      bare documents list/upload literal has no trailing /segment — none extract there.');
     console.log('    • payment/process|refund|status — .NET PaymentFormComponent host-demo endpoints.');
     console.log('    • registrationtokens/validate-detailed/{} — Razor server-render-only variant.');
+    console.log('    • appcomponentconfigurations/{}/seeder-configuration|seeder/ledger|seeder/history —');
+    console.log('      server-only Seeder component (.NET Shared + @wildwood/node); no Swift/iOS client.');
   }
 }
 
