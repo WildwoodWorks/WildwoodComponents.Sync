@@ -89,10 +89,70 @@ const KNOWN_ROOTS = [
   'notifications', 'disclaimers', 'disclaimeracceptance', 'payment',
   'paymenttransactions', 'twofactor', 'webauthn', 'userregistration',
   'registrationtokens', 'appcomponentconfigurations', 'users',
+  // 'documents' — tenant DocumentService (JS PR #5; ported to .NET + Swift July 2026).
+  // Heads-up: JS assembles document URLs through a private DocumentService.url() helper
+  // (`${base}/documents${path}`), so — like the notification-inbox and ai-flow-subscription
+  // services — its paths are never root-anchored quoted literals and won't be extracted.
+  // The .NET (`$"{_apiBaseUrl}/documents/..."`) and Swift (`"api/documents/..."`) literals
+  // ARE extracted, so `documents/*` shows as one-sided "missing from JS". That is a KNOWN
+  // JS-helper extractor blind spot (see the note below), NOT a real gap — the reason to
+  // track 'documents' anyway is to catch .NET-vs-Swift path divergence between the two
+  // fresh ports.
+  'documents',
   // 'subscription' has NO backend controller — the legacy SubscriptionService
   // was deleted from both stacks (June 2026); any hit here is a regression.
   'subscription',
 ];
+
+// ---------- Known one-sided endpoints (advisory-report false positives) ----------
+// The endpoint report below is heuristic and one-sided entries are expected in three
+// documented cases. These are NOT client bugs; they are recorded here so the report stays
+// interpretable and future maintainers don't "fix" a non-problem:
+//
+//   1. HELPER-ASSEMBLED URLs (extractor blind spot) — several services build a URL from a base
+//      held in a private helper (JS `url()`/`apiBase()`; .NET `BaseRoute()`), passing only the
+//      tail segment at the call site. The root and the tail never appear in one string literal,
+//      so the extractor cannot reconstruct them. The paths DO match across stacks; only where
+//      they are extractable differs:
+//        · JS extracts ZERO paths for notifications/*, documents/*, and ai/flows/subscriptions*
+//          (all assembled via a helper) — they always print "missing from JS".
+//        · .NET builds the subscription SUB-paths as `$"{BaseRoute()}/{id}/enable"`, so only the
+//          base `ai/flows/subscriptions` extracts (from BaseRoute()'s own literal); the /{},
+//          /{}/enable, /{}/disable, /{}/latest-run variants print "missing from .NET".
+//        · Swift writes full literals, but the bare list/upload roots ("api/documents",
+//          "api/ai/flows/subscriptions") have no trailing `/segment`, which GENERIC_LITERAL
+//          intentionally requires (so bare route-name strings don't match) — so bare `documents`
+//          prints "missing from Swift".
+//      All verified equivalent by reading the services directly. See KNOWN_BENIGN_ONE_SIDED below.
+//
+//   2. PAYMENT DEMO ENDPOINTS — `payment/process`, `payment/refund`, `payment/status/{}` exist
+//      only in .NET PaymentService.cs, which documents them as HOST-supplied endpoints for the
+//      raw-card PaymentFormComponent demo, explicitly NOT built-in WildwoodAPI routes. The real
+//      cross-stack flow (`payment/initiate` / `payment/confirm` / `payment/validate-*-receipt`)
+//      is fully at parity. `payment/process` is not the same logical op as initiate/confirm.
+//
+//   3. RAZOR SERVER-RENDER VARIANT — `registrationtokens/validate-detailed/{}` is called only by
+//      .NET Razor (WildwoodRegistrationService) to prefetch rich token info for server-side page
+//      rendering. Blazor, JS, and Swift all use the lightweight boolean `validate-simple/{}` (at
+//      parity). This is an idiomatic divergence, not a client bug.
+
+// Normalized one-sided endpoints that are documented-benign per the cases above. The report
+// partitions these out of the "REVIEW" list so a genuine divergence stands out (they are still
+// counted and summarized, never silently hidden). Add an entry ONLY after verifying — by reading
+// the services — that the endpoint truly matches across stacks and merely fails to extract
+// somewhere. Anything one-sided and NOT in this set prints under "REVIEW" as a real signal.
+const KNOWN_BENIGN_ONE_SIDED = new Set([
+  // Helper-assembled (JS url() / .NET BaseRoute()) + Swift bare-root literal skips:
+  'notifications/count', 'notifications/preferences', 'notifications/read-all',
+  'notifications/{}', 'notifications/{}/read',
+  'documents', 'documents/{}', 'documents/{}/text', 'documents/{}/download',
+  'ai/flows/subscriptions', 'ai/flows/subscriptions/{}', 'ai/flows/subscriptions/{}/enable',
+  'ai/flows/subscriptions/{}/disable', 'ai/flows/subscriptions/{}/latest-run',
+  // .NET PaymentFormComponent host-supplied demo endpoints (not Wildwood routes):
+  'payment/process', 'payment/refund', 'payment/status/{}',
+  // Razor server-render-only token-detail variant (others use validate-simple):
+  'registrationtokens/validate-detailed/{}',
+]);
 
 function normEndpoint(p) {
   let s = p
@@ -197,18 +257,36 @@ console.log(keysOk ? '  ✓ storage keys aligned' : '  ✗ STORAGE KEY MISMATCH'
 if (!QUIET) {
   console.log('\n=== Endpoint paths (heuristic report) ===');
   console.log(`  ${stacks.map(([name, , ep]) => `${name}: ${ep.size}`).join('   ')}`);
-  console.log('  Note: one-sided entries may be legitimate (e.g. admin-only or server-only');
-  console.log('  routes). Review — exact same logical op on different paths is a real bug.');
+  console.log('  One-sided entries are partitioned below. Anything under REVIEW is a real signal');
+  console.log('  (the same logical op on different paths is a bug); documented extraction');
+  console.log('  artifacts / legitimate one-sided routes are summarized under "known-benign".');
+
   const epUnion = new Set(stacks.flatMap(([, , ep]) => [...ep]));
-  let epAligned = true;
+  let reviewCount = 0;
+  let benignCount = 0;
   for (const [name, , ep] of stacks) {
     const missing = diff(epUnion, ep);
-    if (missing.length) {
-      epAligned = false;
-      console.log(`\n  Missing from ${name} (present in another stack):\n    ${missing.join('\n    ')}`);
+    if (!missing.length) continue;
+    const review = missing.filter((e) => !KNOWN_BENIGN_ONE_SIDED.has(e));
+    benignCount += missing.length - review.length;
+    if (review.length) {
+      reviewCount += review.length;
+      console.log(`\n  ⚠ Missing from ${name} — REVIEW (present in another stack):\n    ${review.join('\n    ')}`);
     }
   }
-  if (epAligned) console.log('  ✓ endpoint sets match');
+
+  if (reviewCount === 0) {
+    console.log('\n  ✓ No unexpected endpoint divergences.');
+  }
+  if (benignCount) {
+    console.log(`\n  ${benignCount} known-benign one-sided entr${benignCount === 1 ? 'y' : 'ies'} suppressed`);
+    console.log('  (see "Known one-sided endpoints" / KNOWN_BENIGN_ONE_SIDED above):');
+    console.log('    • JS assembles notifications/*, documents/*, ai/flows/subscriptions* via a private');
+    console.log('      url() helper; .NET assembles the subscription sub-paths via BaseRoute(); Swift\'s');
+    console.log('      bare documents list/upload literal has no trailing /segment — none extract there.');
+    console.log('    • payment/process|refund|status — .NET PaymentFormComponent host-demo endpoints.');
+    console.log('    • registrationtokens/validate-detailed/{} — Razor server-render-only variant.');
+  }
 }
 
 // Hard-fail only on the precise check (storage keys). Endpoints are advisory.
