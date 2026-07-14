@@ -30,7 +30,7 @@ WildwoodComponents.Shared        ← .NET shared library: models, DTOs, utilitie
   └─► WildwoodComponents.Razor   ← Razor ViewComponents for MVC (29 components)
 ```
 
-- **WildwoodComponents.Shared** is the .NET-internal shared library. It holds models (`AppTierModels`, `WildwoodAuthModels`, `PaymentProviderModels`, etc.), utilities (`FormatHelpers`, `TokenExpiryParser`, `SessionConstants`), and is consumed by both Blazor and Razor projects within the .NET solution.
+- **WildwoodComponents.Shared** is the .NET-internal shared library. It holds models (`AppTierModels`, `WildwoodAuthModels`, `PaymentProviderModels`, etc.), utilities (`FormatHelpers`, `TokenExpiryParser`, `SessionConstants`), and is consumed by both Blazor and Razor projects within the .NET solution. It also hosts the framework-neutral **Seeder** (`Seeder/`) — a server-side app-data provisioning harness (idempotent `ISeederTask`s, `SeederApiClient`, topo-sorting `SeederRunner`, auto-startup `SeederRunnerService`) that any .NET host can adopt.
 - **WildwoodComponents.Blazor** has its own services layer, base component class (`BaseWildwoodComponent`), JS interop scripts, and payment script providers.
 - **WildwoodComponents.Razor** has its own services layer (server-side HTTP calls), ViewComponent classes, Razor views, cookie auth helpers, and middleware.
 - **Test Suite**: `WildwoodComponentsTestSuiteBlazor` — Blazor web app with 24 test pages.
@@ -51,7 +51,7 @@ Self-contained pnpm monorepo with its own internal shared library:
 - **@wildwood/react-shared** holds 23 hooks with pure business logic (no UI) shared between React web and React Native.
 - **@wildwood/react** wraps core services with React components and re-exports shared hooks.
 - **@wildwood/react-native** provides native mobile components using the same shared hooks.
-- **@wildwood/node** provides Express middleware (`authMiddleware`, `rateLimitMiddleware`, `proxyMiddleware`) and `adminClient` for server-to-server operations.
+- **@wildwood/node** provides Express middleware (`authMiddleware`, `rateLimitMiddleware`, `proxyMiddleware`), `adminClient` for server-to-server operations, and the **Seeder** (`seeder/` — `SeederRunner`/`runSeeder`, the server-side app-data seeding harness ported from .NET `WildwoodComponents.Shared/Seeder`). The Seeder is server-only (CompanyAdmin login + startup seeding) and so has no `@wildwood/core`, react, react-native, or Swift counterpart — the same reason `@wildwood/node` itself has no Swift equivalent.
 - **Test Suite**: `WildwoodComponentsTestSuite.React` — Vite + React app with 14 test pages.
 
 ### Swift Architecture (WildwoodComponents.Swift)
