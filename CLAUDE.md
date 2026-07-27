@@ -30,7 +30,7 @@ WildwoodComponents.Shared        ← .NET shared library: models, DTOs, utilitie
   └─► WildwoodComponents.Razor   ← Razor ViewComponents for MVC (29 components)
 ```
 
-- **WildwoodComponents.Shared** is the .NET-internal shared library. It holds models (`AppTierModels`, `WildwoodAuthModels`, `PaymentProviderModels`, etc.), utilities (`FormatHelpers`, `TokenExpiryParser`, `SessionConstants`), and is consumed by both Blazor and Razor projects within the .NET solution. It also hosts the framework-neutral **Seeder** (`Seeder/`) — a server-side app-data provisioning harness (idempotent `ISeederTask`s, `SeederApiClient`, topo-sorting `SeederRunner`, auto-startup `SeederRunnerService`) that any .NET host can adopt.
+- **WildwoodComponents.Shared** is the .NET-internal shared library. It holds models (`AppTierModels`, `WildwoodAuthModels`, `PaymentProviderModels`, etc.), utilities (`FormatHelpers`, `TokenExpiryParser`, `SessionConstants`), and is consumed by both Blazor and Razor projects within the .NET solution. It also hosts the framework-neutral **Seeder** (`Seeder/`) — a server-side app-data provisioning harness (idempotent `ISeederTask`s, `SeederApiClient`, topo-sorting `SeederRunner`, auto-startup `SeederRunnerService`) that any .NET host can adopt. As of July 2026 the seeder authenticates X-API-Key-first (an app API key minted with the `tiers:manage` scope); CompanyAdmin login and pre-issued bearer tokens are deprecated fallbacks.
 - **WildwoodComponents.Blazor** has its own services layer, base component class (`BaseWildwoodComponent`), JS interop scripts, and payment script providers.
 - **WildwoodComponents.Razor** has its own services layer (server-side HTTP calls), ViewComponent classes, Razor views, cookie auth helpers, and middleware.
 - **Test Suite**: `WildwoodComponentsTestSuiteBlazor` — Blazor web app with 24 test pages.
@@ -137,3 +137,13 @@ Key parity dimensions:
 - **Storage keys** — Key names share the `ww_` prefix across stacks (browser localStorage in .NET/JS; Keychain/UserDefaults in Swift via `WildwoodStorageKeys`)
 
 `scripts/parity-check.mjs` runs the 3-way check (storage keys hard-fail; endpoints advisory). The Swift root is optional, so the script still works on 2-way checkouts.
+
+### Known backend-only API surfaces (2026-07-27 audit)
+
+WildwoodAPI surfaces that intentionally have **no SDK counterpart in any stack** — their absence is not a parity gap:
+
+- **AI relay** (`POST api/ai/relay`, `/stream`, incl. the `EnableWebSearch` flag, 2026-07-15) — a backend relay surface; the SDKs use `api/ai/chat` / `api/ai/proxy`.
+- **Service-key file/document surfaces** (`api/apps/{appId}/files/service`, `api/apps/{appId}/documents/service`) — server-to-service endpoints authenticated with `X-Service-Key` (the CompanyApp API key), meant for app backends, not end-user SDK clients. The SDK-facing `api/documents/*` routes are unchanged.
+- **Per-app document configuration + admin file management** (`{appId}/documents`, `/statistics`, `/files*`) — WildwoodAdmin-portal-only. Uploads through the SDK route are now validated against this config server-side (new 400 messages; images are accepted and stored terminal `parsed`).
+- **Admin-only DTO fields not modeled in the SDKs**: `AutoProvisionClientOnRegistration` (auth-configuration DTO — a server-side registration behavior toggle) and `CompanyAIProviderName`/`SystemProviderName` (AI-config DTO — nulled for non-admin callers). All three stacks omit them consistently.
+- **Auth-provider list behavior** (7/24–7/26): the server no longer falls back to company-level providers for unconfigured apps and hides credential-less/company-disabled providers — components must tolerate an empty provider list (all three do). Provider buttons render the DTO's `buttonText` when configured (three stacks aligned July 2026).
