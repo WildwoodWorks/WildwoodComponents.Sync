@@ -147,3 +147,47 @@ WildwoodAPI surfaces that intentionally have **no SDK counterpart in any stack**
 - **Per-app document configuration + admin file management** (`{appId}/documents`, `/statistics`, `/files*`) — WildwoodAdmin-portal-only. Uploads through the SDK route are now validated against this config server-side (new 400 messages; images are accepted and stored terminal `parsed`).
 - **Admin-only DTO fields not modeled in the SDKs**: `AutoProvisionClientOnRegistration` (auth-configuration DTO — a server-side registration behavior toggle) and `CompanyAIProviderName`/`SystemProviderName` (AI-config DTO — nulled for non-admin callers). All three stacks omit them consistently.
 - **Auth-provider list behavior** (7/24–7/26): the server no longer falls back to company-level providers for unconfigured apps and hides credential-less/company-disabled providers — components must tolerate an empty provider list (all three do). Provider buttons render the DTO's `buttonText` when configured (three stacks aligned July 2026).
+
+### Feedback screenshot capture — deliberately stack-specific (2026-08-06)
+
+The FeedbackComponent's screenshot capture is the clearest case in the library of
+**the same user-facing guarantee reached by three different mechanisms**. Do not
+"fix" one stack into looking like another here; the divergence is the design.
+
+The shared guarantees, which all three stacks now meet:
+
+1. **A strict Content-Security-Policy must not break screenshots.** html2canvas is
+   reached from the app's OWN origin, never from a third-party CDN by default.
+2. **No permission prompt when a local library can do the job silently.** Both
+   capture modes try html2canvas first; `getDisplayMedia` is a last resort, not a
+   peer, because it puts a share picker in front of the user.
+3. **Report the actual cause.** A typed reason drives per-reason copy instead of
+   one generic "Failed to capture screenshot." — and a deliberate cancel (Escape,
+   a too-small selection, or dismissing the share picker) produces NO message at
+   all. The reason SET is per-stack and deliberately not uniform: JS carries all
+   six (`library-blocked`, `library-timeout`, `permission`, `wrong-surface`,
+   `unsupported`, `failed`), because only its area capture crops viewport
+   coordinates out of a native frame and so has to refuse a foreign surface.
+   Blazor documents `wrong-surface` and maps copy for it defensively but never
+   raises it; Razor carries five and omits it outright. Neither omission is a gap
+   — a path that never crops a shared frame cannot fail that way.
+
+How each stack gets there:
+
+| Stack | Mechanism |
+|---|---|
+| **JS** (`@wildwood/react`) | `html2canvas` is a package dependency loaded by dynamic `import()`. A bundler resolves it from the app's origin and code-splits it, so an app that never opens the widget never downloads it. The CDN remains for consumers who load the SDK from a CDN and so have no bundler. |
+| **.NET** (Blazor + Razor) | No bundler exists to code-split an npm dependency, so `html2canvas.min.js` is **vendored into each package's `wwwroot`** and served as `_content/<package>/js/html2canvas.min.js`. Blazor resolves that sibling URL from `import.meta.url` (ES module); Razor from `document.currentScript` (classic script). Each RCL carries its own copy — the two packages are independent and neither references the other. |
+| **Swift** | **No in-SDK capture exists at all**, and none is planned: screenshots arrive from the host app (e.g. `ImageRenderer`) or the photo library. There is no CSP, no third-party script, and no screen-share prompt on iOS, so guarantees 1 and 2 have no counterpart — their absence is NOT a parity gap. Guarantee 3 applies to the path Swift does own: a PhotosPicker load that fails says so, a cancel stays silent, and the image is re-encoded to JPEG under the app's `screenshotQuality`/`screenshotMaxSizeKb` so the `data:image/jpeg` URL is true of its bytes. |
+
+Host escape hatches, identical in all three web stacks: pre-register
+`window.html2canvas` (nothing is fetched), or set `window.__WW_HTML2CANVAS_SRC__`
+to a URL you serve yourself (used ALONE when set — it does not fall through to the
+vendored copy, because naming a URL is a statement about where the library should
+come from).
+
+Updating the vendored copy: replace `wwwroot/js/html2canvas.min.js` in BOTH .NET
+packages with `node_modules/html2canvas/dist/html2canvas.min.js` from the version
+`@wildwood/react` pins, so all three stacks stay on one version (1.4.1 as of this
+entry). `.gitattributes` marks `*.min.js` as `-text` so the checked-in dist stays
+byte-identical to the upstream release.
