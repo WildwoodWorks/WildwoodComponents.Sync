@@ -25,14 +25,16 @@ The VS Code workspace file (`WildwoodComponents.code-workspace`) opens all proje
 Self-contained .NET solution with its own internal shared library:
 
 ```
-WildwoodComponents.Shared        ← .NET shared library: models, DTOs, utilities
-  ├─► WildwoodComponents.Blazor  ← Blazor interactive components (29 components)
-  └─► WildwoodComponents.Razor   ← Razor ViewComponents for MVC (29 components)
+WildwoodComponents.Shared          ← .NET shared library: models, DTOs, utilities
+  ├─► WildwoodComponents.Blazor    ← Blazor interactive components (29 components)
+  ├─► WildwoodComponents.Razor     ← Razor ViewComponents for MVC (29 components)
+  └─► WildwoodComponents.WebForms  ← classic WebForms user controls, .NET Framework 4.8
 ```
 
 - **WildwoodComponents.Shared** is the .NET-internal shared library. It holds models (`AppTierModels`, `WildwoodAuthModels`, `PaymentProviderModels`, etc.), utilities (`FormatHelpers`, `TokenExpiryParser`, `SessionConstants`), and is consumed by both Blazor and Razor projects within the .NET solution. It also hosts the framework-neutral **Seeder** (`Seeder/`) — a server-side app-data provisioning harness (idempotent `ISeederTask`s, `SeederApiClient`, topo-sorting `SeederRunner`, auto-startup `SeederRunnerService`) that any .NET host can adopt. As of July 2026 the seeder authenticates X-API-Key-first (an app API key minted with the `tiers:manage` scope); CompanyAdmin login and pre-issued bearer tokens are deprecated fallbacks.
 - **WildwoodComponents.Blazor** has its own services layer, base component class (`BaseWildwoodComponent`), JS interop scripts, and payment script providers.
 - **WildwoodComponents.Razor** has its own services layer (server-side HTTP calls), ViewComponent classes, Razor views, cookie auth helpers, and middleware.
+- **WildwoodComponents.WebForms** (August 2026) targets **.NET Framework 4.8** — WebForms was never carried forward past it, and 4.8 is the last universal release (installs back to Windows 7 SP1 / Server 2008 R2 SP1, in-place upgrade from 4.5–4.7.2; 4.6.2–4.7.2 leave support 2027-01-12 and 4.8.1 is Windows 11 / Server 2022+ only). It consumes `WildwoodComponents.Shared` through a new `netstandard2.0` leg (the Seeder is excluded from it). Delivery is a compiled DLL plus **NuGet content**: `.ascx` user controls and `.ashx` proxy handlers whose `Inherits=`/`Class=` name compiled base classes, so consumers build nothing. See the WebForms rules in the .Net repo's CLAUDE.md before touching it — the no-nested-`<form>` rule, the shared-asset rule, and the per-request-token rule are all load-bearing. **Phase A only** so far: Authentication and TwoFactorSettings.
 - **Test Suite**: `WildwoodComponentsTestSuiteBlazor` — Blazor web app with 24 test pages.
 
 ### JS Architecture (WildwoodComponents.JS)
@@ -80,6 +82,7 @@ Each project has its own shared library serving the same purpose within its tech
 | (within Blazor services) | `@wildwood/react-shared` | `WildwoodSwiftUI/ViewModels` | Shared business logic between component sets |
 | `WildwoodComponents.Blazor` | `@wildwood/react` | `WildwoodSwiftUI` | Interactive components |
 | `WildwoodComponents.Razor` | `@wildwood/react-native` | (single UI framework) | Alternative platform components |
+| `WildwoodComponents.WebForms` | (no equivalent) | (no equivalent) | Legacy-host components (.NET Framework 4.8) |
 | (no equivalent) | `@wildwood/node` | (no equivalent) | Server-side SDK |
 
 ## Component Inventory (27 components at parity)
@@ -137,6 +140,12 @@ Key parity dimensions:
 - **Storage keys** — Key names share the `ww_` prefix across stacks (browser localStorage in .NET/JS; Keychain/UserDefaults in Swift via `WildwoodStorageKeys`)
 
 `scripts/parity-check.mjs` runs the 3-way check (storage keys hard-fail; endpoints advisory). The Swift root is optional, so the script still works on 2-way checkouts.
+
+The script walks every `.cs` file under the .NET root, so `WildwoodComponents.WebForms`
+is already covered without a fourth root — which is also why its services must write
+endpoints as interpolated strings like the other stacks. Concatenating an id onto a
+literal (`"twofactor/configuration/" + id`) extracts as a *different* path from
+`$"twofactor/configuration/{id}"` and shows up as a false one-sided entry.
 
 ### Known backend-only API surfaces (2026-07-27 audit)
 
