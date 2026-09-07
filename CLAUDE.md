@@ -26,16 +26,21 @@ Self-contained .NET solution with its own internal shared library:
 
 ```
 WildwoodComponents.Shared          ← .NET shared library: models, DTOs, utilities
-  ├─► WildwoodComponents.Blazor    ← Blazor interactive components (29 components)
+  ├─► WildwoodComponents.Blazor    ← Blazor interactive components (33 components)
   ├─► WildwoodComponents.Razor     ← Razor ViewComponents for MVC (29 components)
   └─► WildwoodComponents.WebForms  ← classic WebForms user controls, .NET Framework 4.8
 ```
 
+Count rules (verified 2026-09-07, so the numbers are reproducible): **Blazor** = `.razor`
+files under `WildwoodComponents.Blazor/Components/` (36) minus the three `*Demo.razor`
+host samples. **Razor** = `*ViewComponent.cs` files under
+`WildwoodComponents.Razor/Components/`. **WebForms** = shipped `.ascx` controls (2).
+
 - **WildwoodComponents.Shared** is the .NET-internal shared library. It holds models (`AppTierModels`, `WildwoodAuthModels`, `PaymentProviderModels`, etc.), utilities (`FormatHelpers`, `TokenExpiryParser`, `SessionConstants`), and is consumed by both Blazor and Razor projects within the .NET solution. It also hosts the framework-neutral **Seeder** (`Seeder/`) — a server-side app-data provisioning harness (idempotent `ISeederTask`s, `SeederApiClient`, topo-sorting `SeederRunner`, auto-startup `SeederRunnerService`) that any .NET host can adopt. As of July 2026 the seeder authenticates X-API-Key-first (an app API key minted with the `tiers:manage` scope); CompanyAdmin login and pre-issued bearer tokens are deprecated fallbacks.
 - **WildwoodComponents.Blazor** has its own services layer, base component class (`BaseWildwoodComponent`), JS interop scripts, and payment script providers.
 - **WildwoodComponents.Razor** has its own services layer (server-side HTTP calls), ViewComponent classes, Razor views, cookie auth helpers, and middleware.
-- **WildwoodComponents.WebForms** (August 2026) targets **.NET Framework 4.8** — WebForms was never carried forward past it, and 4.8 is the last universal release (installs back to Windows 7 SP1 / Server 2008 R2 SP1, in-place upgrade from 4.5–4.7.2; 4.6.2–4.7.2 leave support 2027-01-12 and 4.8.1 is Windows 11 / Server 2022+ only). It consumes `WildwoodComponents.Shared` through a new `netstandard2.0` leg (the Seeder is excluded from it). Delivery is a compiled DLL plus **NuGet content**: `.ascx` user controls and `.ashx` proxy handlers whose `Inherits=`/`Class=` name compiled base classes, so consumers build nothing. See the WebForms rules in the .Net repo's CLAUDE.md before touching it — the no-nested-`<form>` rule, the shared-asset rule, and the per-request-token rule are all load-bearing. **Phase A only** so far: Authentication and TwoFactorSettings.
-- **Test Suite**: `WildwoodComponentsTestSuiteBlazor` — Blazor web app with 24 test pages.
+- **WildwoodComponents.WebForms** (August 2026) targets **.NET Framework 4.8** — WebForms was never carried forward past it, and 4.8 is the last universal release (installs back to Windows 7 SP1 / Server 2008 R2 SP1, in-place upgrade from 4.5–4.7.2; 4.6.2–4.7.2 leave support 2027-01-12 and 4.8.1 is Windows 11 / Server 2022+ only). It consumes `WildwoodComponents.Shared` through a new `netstandard2.0` leg (the Seeder is excluded from it). Delivery is a compiled DLL plus **NuGet content**: `.ascx` user controls and `.ashx` proxy handlers whose `Inherits=`/`Class=` name compiled base classes, so consumers build nothing. See the `### WebForms rules (net48)` section in the .Net repo's CLAUDE.md before touching it — all six rules there are load-bearing: (1) `.ascx` markup carries `Inherits=` and never a `CodeFile`; (2) never render a nested `<form>`; (3) never fork the Razor `wwwroot` assets (the csproj packs them from one source of truth); (4) bearer tokens go on the request, never on the process-wide shared client; (5) **write endpoint paths as interpolated strings** — `scripts/parity-check.mjs` extracts them, and a concatenated id produces a false one-sided entry; (6) `netstandard2.0` has no `[NotNullWhen]` on `string.IsNullOrEmpty`, so use pattern form. **Phase A only** so far: Authentication and TwoFactorSettings.
+- **Test Suite**: `WildwoodComponentsTestSuiteBlazor` — Blazor web app with 24 pages (22 component test pages, plus Home and Login; count rule: unique `@page` routes under the test-suite project).
 
 ### JS Architecture (WildwoodComponents.JS)
 
@@ -44,17 +49,23 @@ Self-contained pnpm monorepo with its own internal shared library:
 ```
 @wildwood/core                   ← JS shared library: services, types, utilities (framework-agnostic TS)
   ├─► @wildwood/react-shared     ← Shared React hooks (business logic, no UI)
-  │     ├─► @wildwood/react      ← React components + hooks (59 components, 21 hooks)
-  │     └─► @wildwood/react-native ← React Native components (31 components)
+  │     ├─► @wildwood/react      ← React components + hooks (39 components, 26 hooks)
+  │     └─► @wildwood/react-native ← React Native components (38 components)
   └─► @wildwood/node             ← Node.js/Express middleware + admin client
 ```
 
+Count rules (verified 2026-09-07): components = distinct **value** exports re-exported from
+`./components/` in each package's `src/index.ts`; hooks = distinct `use*` value exports from
+`./hooks/`. Type-only exports are not counted, and the React count includes the shared
+sub-components (`TierCard*`, the six admin panels, `LoadingSpinner`, `ErrorBoundary`,
+`ProtectedRoute`).
+
 - **@wildwood/core** is the JS-internal shared library. Pure TypeScript, zero UI dependencies. Contains `AuthService`, `AIService`, `MessagingService`, `PaymentService`, `TwoFactorService`, `CaptchaService`, `AppTierService`, `DisclaimerService`, `NotificationService`, `ThemeService`, `WildwoodEventEmitter`, `WildwoodClient`, and all shared types. Consumed by all other JS packages.
-- **@wildwood/react-shared** holds 23 hooks with pure business logic (no UI) shared between React web and React Native.
+- **@wildwood/react-shared** holds 28 hooks with pure business logic (no UI) shared between React web and React Native (count rule: distinct `use*` value exports from `./hooks/` in `packages/wildwood-react-shared/src/index.ts` — two of them, `useAuthenticationLogic` and `useTwoFactorLogic`, are consumed by the UI packages rather than re-exported from them, which is why this number exceeds `@wildwood/react`'s 26).
 - **@wildwood/react** wraps core services with React components and re-exports shared hooks.
 - **@wildwood/react-native** provides native mobile components using the same shared hooks.
 - **@wildwood/node** provides Express middleware (`authMiddleware`, `rateLimitMiddleware`, `proxyMiddleware`), `adminClient` for server-to-server operations, and the **Seeder** (`seeder/` — `SeederRunner`/`runSeeder`, the server-side app-data seeding harness ported from .NET `WildwoodComponents.Shared/Seeder`). The Seeder is server-only (CompanyAdmin login + startup seeding) and so has no `@wildwood/core`, react, react-native, or Swift counterpart — the same reason `@wildwood/node` itself has no Swift equivalent.
-- **Test Suite**: `WildwoodComponentsTestSuite.React` — Vite + React app with 14 test pages.
+- **Test Suite**: `WildwoodComponentsTestSuite.React` — Vite + React app with 19 test pages (count rule: `path=` routes in `WildwoodComponentsTestSuite.React/src/App.tsx`).
 
 ### Swift Architecture (WildwoodComponents.Swift)
 
@@ -62,14 +73,20 @@ Self-contained SPM package (two products) with its own internal shared library:
 
 ```
 WildwoodCore                     ← Swift shared library: services, models, session/token mgmt (zero UI imports)
-  └─► WildwoodSwiftUI            ← SwiftUI components (31) + @Observable view models
+  └─► WildwoodSwiftUI            ← SwiftUI components (29) + @Observable view models
         ├─ ViewModels/           ← ≈ @wildwood/react-shared (no `import SwiftUI`)
         └─ Components/           ← ≈ @wildwood/react-native (iOS-gated)
 ```
 
+Count rule (verified 2026-09-07): `.swift` files under `Sources/WildwoodSwiftUI/Components/`,
+**support types included** — `CaptchaWebView`, `StoreKitPurchaseManager`,
+`StorePurchaseSettlement`, `TierCard`, `SubscriptionPanels`, and `UsageMath` are files under
+`Components/` but are not user-facing components, so this number is not comparable
+one-for-one with the JS export counts above.
+
 - **WildwoodCore** mirrors `@wildwood/core` method-for-method: `WildwoodClient` factory exposing `auth`, `session`, `ai`, `messaging`, `payment`, `appTier`, `twoFactor`, `captcha`, `disclaimer`, `feedback`, `notifications`, `theme`, `events`, `http`. Swift 6 strict concurrency: `WildwoodHttpClient` is an actor; `SessionManager`/`NotificationService`/`ThemeService` are `@MainActor @Observable`. Tokens go to the Keychain, other `ww_` keys to UserDefaults (CompositeStorage).
 - **Payments are processor-agnostic**: provider selection is backend-driven via `PlatformFilteredProvidersDto`; the App Store path runs StoreKit 2 and validates JWS against `api/payment/validate-apple-receipt`, others use generic `initiatePayment`/`confirmPayment` with web checkout — all payment/subscription state remains in Wildwood.
-- **Test Suite**: `WildwoodComponentsTestSuite.iOS` — XcodeGen-defined SwiftUI app with 19 test screens (`project.yml` checked in, `.xcodeproj` generated on a Mac).
+- **Test Suite**: `WildwoodComponentsTestSuite.iOS` — XcodeGen-defined SwiftUI app with 19 test screens (count rule: `case`s of the `TestScreen` enum in `TestSuite/HomeScreen.swift`; `project.yml` checked in, `.xcodeproj` generated on a Mac).
 - iOS 26 minimum deployment; iOS 27 features behind `@available(iOS 27, *)`. Builds/tests require macOS (Xcode 27 beta); code can be authored on Windows.
 
 ### Shared Library Equivalence
@@ -88,7 +105,7 @@ Each project has its own shared library serving the same purpose within its tech
 ## Component Inventory (27 components at parity)
 
 All three stacks implement these components:
-- **AI**: AIChatComponent, AIProxyComponent, AIFlowComponent (July 2026 — app-facing "AI Flows with LangChain": SSE-streamed runs of published LangGraph flows with human-in-the-loop interrupts and run history; a NEW feature, unrelated to the obsolete AIFlow deleted May 2026)
+- **AI**: AIChatComponent, AIProxyComponent (all three stacks ship one, but the shapes differ: React/RN and Blazor/Razor each give it its own file and UI, while Swift's is a thin `View` wrapper over `AIChatComponent(useProxy: true)` declared inside `Components/AI/AIChatComponent.swift`. The `api/ai/proxy` call itself lives in `WildwoodCore`'s `AIService`, so the wrapper is a packaging choice, not a missing component), AIFlowComponent (July 2026 — app-facing "AI Flows with LangChain": SSE-streamed runs of published LangGraph flows with human-in-the-loop interrupts and run history; a NEW feature, unrelated to the obsolete AIFlow deleted May 2026)
 - **Auth**: AuthenticationComponent, TokenRegistrationComponent, SignupWithSubscriptionComponent
 - **Subscriptions**: SubscriptionAdminComponent (+ 6 admin sub-panels: StatusPanel, TierPlansPanel, FeaturesPanel, AddOnsPanel, UsageLimitsPanel, OverridesPanel) — tier-based; the legacy SubscriptionComponent/SubscriptionManagerComponent were removed June 2026 (they targeted a nonexistent `api/subscription/*` backend)
 - **Payment**: PaymentComponent, PaymentFormComponent
@@ -200,3 +217,73 @@ packages with `node_modules/html2canvas/dist/html2canvas.min.js` from the versio
 `@wildwood/react` pins, so all three stacks stay on one version (1.4.1 as of this
 entry). `.gitattributes` marks `*.min.js` as `-text` so the checked-in dist stays
 byte-identical to the upstream release.
+
+### September 2026 parity sync (2026-09-07)
+
+A cross-stack sweep that closed the gaps below and, more importantly, wrote down the
+backend facts and the deliberate divergences so later audits do not re-chase them.
+Full audit: `Plan/20260907-0836-cross-stack-parity-sync/plan.md`.
+
+**What was synced**
+
+| Stack | Changes |
+|---|---|
+| **JS** | core `validateStorePurchase` also sends `receiptData`; React `AppTierComponent` previews paid changes and forwards `paymentTransactionId` after payment; RN gained `onRegisterClick`. |
+| **.NET** | forced-reset flag preserved across refresh in Blazor/Razor/WebForms; Blazor sends a per-request bearer on reset; `ResetToken` wire parity; Blazor `AllowRegistration`/`OnRegisterClick`; Razor `registerUrl` + WebForms `RegisterUrl`; password visibility toggles in Razor/WebForms; Shared `StorePurchase` + Blazor `ValidateStorePurchaseAsync` (old method `[Obsolete]`); `SubscriptionOverride` on both usage dashboards; four Razor CSS fallbacks. |
+| **Swift** | `validateStorePurchase` + IAP models; StoreKit finish rule (`StorePurchaseSettlement`); ThemeService→environment bridge with explicit-theme precedence; `PricingDisplayComponent` moved to `getPublicTiers`; `allowRegistration`/`onRegisterClick`; `WildwoodSecureField`; `UsageDashboardComponent` two-arg `onMergeUsage` + overrides; `AuthView: Equatable`. |
+
+**Backend facts that bound the sync** — state them, do not re-derive them:
+
+1. WildwoodAPI's `ValidateReceiptRequest` binds `receiptData`, **not**
+   `purchaseToken`/`transactionId`/`isRestore`. All three stacks therefore send
+   `receiptData` (= the purchase token) alongside `purchaseToken`. The follow-up
+   belongs in WildwoodAPI — bind `PurchaseToken` as a fallback and add
+   `TransactionId`/`IsRestore` — not in the SDKs.
+2. `POST api/auth/reset-password` is `[Authorize]` and its DTO carries no
+   `ResetToken`. The `resetToken` field JS, Swift and .NET all carry is **wire parity
+   for a future emailed-link flow** and 401s today. Do not "fix" it by removing it.
+3. `disclaimeracceptance/pending/{appId}` is `[AllowAnonymous]`, so Blazor's
+   unauthenticated pending fetch is correct as written.
+
+**Decisions — idioms, not gaps**
+
+- Razor `AllowRegistration` / WebForms `AllowRegistration` stay **AND-only**: a
+  server-rendered stack can hide sign-up but cannot force-show it.
+- Razor `registerUrl` and WebForms `RegisterUrl` are the server-rendered analog of
+  React/RN/Blazor's `onRegisterClick` callback — a URL, not a delegate.
+- Swift `subscriptionOverride` is a plain optional. React's explicit-null-hides-the-badge
+  tri-state is modelled in **neither** Swift nor .NET, and that is intentional.
+- The Swift theme bridge applies `.tint(accent)` at the root, exactly as
+  `.wildwoodTheme(_:)` always did; the bridge only changes where the theme comes from.
+- StoreKit transactions are finished **only** after a validation that returned a Wildwood
+  transaction id (for restores, success alone suffices) — the same rule RN's
+  `useInAppPurchases` follows.
+- Swift `UsageLimitRow`'s new members default to `80` / `true` so the admin usage panel
+  and the dashboard share one warn-threshold rule.
+
+**Deferred — known divergences; do not flag these as regressions**
+
+- **Theme depth.** Swift's `WildwoodTheme` has 7 fields (`name` + 6 colors) against the
+  web's 64 `--ww-*` CSS custom properties and RN's 52-field `WildwoodTheme`, and is
+  applied in 7 of 29 files under `Sources/WildwoodSwiftUI/Components/` (RN applies its
+  theme in 5 of 40 files under `src/components/`). Both are shallow on purpose — iOS
+  defers chrome to the system.
+- **`AppTierComponent` payment-collection shape differs by stack**: RN exposes an
+  `onPaymentRequired` callback seam, React/Blazor run an internal payment step, Swift
+  raises `onTierChangeRequested`. `SubscriptionAdminComponent` carries the callback seam
+  in all stacks, so the seam exists everywhere — just not on the same component.
+- React `AppTierComponent.showAddOns` is declared but never renders anything.
+- `getPublicAddOns` has **zero component callers in every stack** — method-level parity only.
+- Razor `WildwoodAuthService` lacks passkeys, `validateLicenseToken`, `sendTwoFactorCode`
+  and `verifyTwoFactorRecoveryCode`; Razor `WildwoodPaymentService` lacks
+  `RequestRefundAsync` and `ValidateAppStoreReceiptAsync`. Server-rendered platform limits.
+- Blazor calls `userregistration/register|validate` inline from components rather than
+  through a service.
+- Razor's `ApplyAuthorizationHeader` mutates the shared client's default headers. A
+  Razor-wide per-request-token refactor is a separate effort (WebForms rule 4 already
+  forbids copying the pattern).
+
+**Corrected during this run**: the audit's note that "Swift has no `AIProxyComponent`
+view" is **wrong** — `public struct AIProxyComponent: View` exists in
+`Sources/WildwoodSwiftUI/Components/AI/AIChatComponent.swift`. See the AI line in the
+Component Inventory above.
