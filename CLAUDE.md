@@ -397,8 +397,12 @@ the three delta appendices: `Plan/20260918-1238-regsub-cross-stack-parity/plan.m
   form of `changeTier`, query keys `tier`/`pricing`/`addons` (+ `token`/`invite`/`email`), pack
   selection capped at 25, the `trialLabel` wording, the error codes.
 - **Web-only pieces were not ported literally**: Stripe.js/Elements (`payment/stripe.ts`,
-  `useStripeCardElement`, `CardSetupForm`), `initialCatalog`/SSR seeding, Storybook, Playwright.
-  Blazor and Razor reach Stripe through their existing script interop.
+  `useStripeCardElement`, `CardSetupForm`), `initialCatalog`/SSR seeding, Storybook, Playwright —
+  and, from the addendum below, the `@wildwood/react/testing` entry point (Playwright helpers that
+  drive the signup, importing Playwright for **types only**, with `@playwright/test` pinned
+  **exactly** at 1.61.1 in both the devDependency and the optional peer). That is web test tooling
+  with no counterpart in any other stack, and the exact pin is a JS packaging fact — not a
+  cross-stack contract. Blazor and Razor reach Stripe through their existing script interop.
 - **Native stacks (React Native, Swift) take NO Stripe SDK dependency.** A card sheet and a bank's
   3-D Secure challenge need a native module and merchant configuration, so the one thing the flows
   cannot do for themselves is **injected**: a host-supplied payment-action handler with
@@ -438,6 +442,13 @@ the three delta appendices: `Plan/20260918-1238-regsub-cross-stack-parity/plan.m
   stack can reach it.
 - **JSON-LD is web and Razor only.** React emits `CatalogJsonLd`, Blazor emits it from
   `Parts/CatalogJsonLd.razor`, Razor emits it server-side; RN and Swift have no document head.
+- **Only a consent BAR reserves page space — the .NET corner card deliberately does not.** React's
+  banner has one position, so its `reserveSpace` effect always pads the page's bottom. The Blazor
+  and Razor banner has three (`topBar`, `bottomBar`, `corner`), and `reservedEdge()` returns an
+  edge for the two **bars** only: a ~420px card inset from a corner would otherwise leave a
+  full-width blank strip under the content for as long as it is up — a worse bug than the one the
+  port fixes. The corner card still publishes `--ww-consent-height`, so a host that wants to make
+  room itself can.
 - **The label set is a 95-string cross-stack contract**, pinned by a test in each stack (JS
   `labels.ts`, .NET `RegistrationSubscriptionLabelsTests`, Swift
   `RegistrationSubscriptionLabelsTests` asserts `table.count == 95`). A string added in one stack
@@ -506,6 +517,71 @@ the three delta appendices: `Plan/20260918-1238-regsub-cross-stack-parity/plan.m
 - **The plugin/global CLAUDE.md component tables (`WildwoodComponents.Claude`) were NOT updated by
   this run — FOLLOW-UP.** Their component table still lists the pre-sync set and has no
   Registration & Subscription row.
+
+**Addendum — JS `main` moved during the run (7a3fe85 → 642f719)**
+
+Three PRs landed on JS `main` while this sync was being written: **#29** (`planDefault`), **#30**
+(the Playwright testing helpers, the disclaimer action hooks, the consent-banner reserve-space fix)
+and **#31** (the exact `@playwright/test` pin). Merge `e27ab3b` brought all three onto the branch.
+Exactly one piece needed re-applying: main's `planDefault`/`defaultTierId` edit targeted React's
+`components/registrationSubscription/views/useSignupFlow.ts`, which this run had already reduced to
+a re-export shim over `@wildwood/react-shared`, so it was **re-applied in react-shared**
+(`registrationSubscription/useSignupFlow.ts`; `SignupPlanDefault` in its `types.ts`) — which lands
+it in React and React Native at once, and React Native additionally gained the prop and a pure
+`signupHighlightTierId` rule. Everything else from main merged unchanged.
+
+**`planDefault: 'none' | 'free'` is now in every stack.**
+
+| Stack | Shape |
+|---|---|
+| **React + RN** | `planDefault` prop → shared `useSignupFlow` returns `defaultTierId`; RN's precedence is the pure `signupHighlightTierId(selection, default, preSelected)` in `views/signupViewModel.ts` |
+| **Blazor** | `PlanDefault` parameter on `RegistrationSubscriptionSignup` **and** on the `RegistrationAndSubscriptionComponent` shell; `SignupViewDecisions.DefaultTierId`/`HighlightTierId`; surfaced as `SignupFlowDriver.DefaultTierId` |
+| **Razor** | `plan-default` tag-helper attribute on `<vc:registration-subscription-signup>` and `<vc:registration-and-subscription>`, parsed by `RegistrationSubscriptionSignupDecisions.ParsePlanDefault` and decided **server-side** — no client JS and no data attribute |
+| **Swift** | `planDefault:` on `RegistrationSubscriptionSignupView` and `RegistrationSubscriptionSignupConfiguration`; rules in `ViewModels/SignupViewRules.swift` |
+| **Enum** | .NET `WildwoodComponents.Shared/Utilities/SignupPlanDefault.cs`; `SignupPlanDefault` in JS and Swift |
+
+**One rule, identical everywhere**: the default tier is the catalog's **first free tier**, only when
+`planDefault` is `free`, and **never in invite mode** (an invite's plan comes from its token). It is
+a **HIGHLIGHT only** — **none of the four machine ports takes it as input**, so the signup machine
+never sees it and the visitor still confirms with a click. Precedence is
+`selection ?? default ?? link-preselected tier`: the default sits **ahead** of the link's `?tier=`
+on purpose, because a stale or hand-edited id is one the flow already refused, and the grid should
+open on the host's default rather than on nothing at all.
+
+**Disclaimer test hooks.** The same three controls, spelled the way each stack can carry them:
+
+| Control | React | Blazor / Razor | Swift |
+|---|---|---|---|
+| Retry a failed load | `data-ww-disclaimer-action="retry"` | — | `disclaimer-retry` |
+| Accept ONE disclaimer | `data-ww-disclaimer-action="accept"` | — | `disclaimer-accept` (the card's toggle) |
+| Submit / accept all | `data-ww-disclaimer-action="accept-all"` | `data-ww-disclaimer-action="accept-all"` | `disclaimer-accept-all` |
+
+The .NET omissions are **not gaps**: the Blazor and Razor disclaimer surfaces have one accept
+button and no retry, so there is no control to hang the other two on. Swift uses
+`accessibilityIdentifier` because a SwiftUI element carries one identifier rather than a bag of
+attributes; the flat `disclaimer-`-prefixed namespace is `ViewModels/DisclaimerTestID.swift`.
+
+**Consent banner "reserve space".** React's fixed banner measures itself and adds its height to the
+page's padding so it stops covering the content. Ported to Blazor (`wwwroot/js/wildwood-consent.js`)
+and Razor (`wwwroot/js/consent.js`) as a **textually identical pure block** (delimited by
+`// ---- BEGIN/END shared reserve-space bookkeeping ----` and asserted line-for-line by
+`AttributionConsentGateSourceTests`, trimmed so the Razor copy's IIFE indentation does not count as
+a difference; exercised by `WildwoodComponents.Tests/Razor/js/consent-reserve-space.selftest.mjs`).
+The .NET port adds a **per-banner ledger**, because a page may host more than one: per edge it
+reserves the page's own padding **plus the tallest live claim**, the page's own padding is captured
+once and restored exactly, and the property is removed outright when there was none.
+`--ww-consent-height` publishes the tallest live banner. Opt-out is `reserveSpace` (React, Blazor) /
+`reserve-space` (Razor), default true. Only the top/bottom **bars** pad the page — see the
+corner-card decision above. **N/A on Swift and React Native**: both banners sit in the host's layout
+flow (RN's `styles.banner` carries no absolute positioning), so nothing is ever covered and there is
+nothing to reserve.
+
+**Not ported, by design**: `@wildwood/react/testing` and the exact Playwright pin — see the
+"web-only pieces" decision above.
+
+**Process note.** A long-running sync must **re-fetch every sibling `main` before opening PRs**:
+GitHub starts no `pull_request` CI on a conflicting PR, so a branch that has drifted sits green-less
+rather than failing loudly.
 
 **Swift compile gate.** Every Swift change in this sync was authored on Windows and reviewed
 read-for-compile only. None of it has been compiled: macOS CI `build-test` on the PR is the first
