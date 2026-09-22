@@ -102,6 +102,18 @@ const KNOWN_ROOTS = [
   // 'subscription' has NO backend controller — the legacy SubscriptionService
   // was deleted from both stacks (June 2026); any hit here is a regression.
   'subscription',
+  // 'stt' — speech-to-text (`POST api/stt/transcribe`). Added .NET-first (Blazor AIService +
+  // Razor WildwoodAIChatService), then JS core AIService and Swift WildwoodCore AIService in the
+  // Sept-2026 regsub sync. All three write the full literal, so it is a clean 3-way root.
+  'stt',
+  // 'consent' — `consent/config` + `consent/record`, written as full literals by all three
+  // (Razor WildwoodConsentService, core consentService.ts, WildwoodCore ConsentService.swift).
+  'consent',
+  // 'attribution' — Campaign Attribution. Only `attribution/claim` is 3-way extractable: the .NET
+  // capture/beacon engine is BROWSER-side (wwwroot/js), which this script's .cs-only walker cannot
+  // read, so `attribution/config` and `attribution/touch` print one-sided. Documented case 5 below;
+  // the root is tracked anyway so a real claim-path divergence cannot hide.
+  'attribution',
 ];
 
 // ---------- Known one-sided endpoints (advisory-report false positives) ----------
@@ -144,6 +156,20 @@ const KNOWN_ROOTS = [
 //      counterpart — the Swift stack is a pure iOS client with no server host, the same reason
 //      `@wildwood/node` itself has no Swift equivalent. So these three routes are legitimately
 //      present in .NET + JS and absent from Swift. Not drift; a server-only component by design.
+//
+//   5. .NET ATTRIBUTION ENGINE LIVES IN wwwroot/js (extractor file-set blind spot) —
+//      `attribution/config` and `attribution/touch` are the Campaign Attribution engine's config
+//      fetch and its landing beacon. JS (`core/attribution/attributionService.ts`) and Swift
+//      (`WildwoodCore/Attribution/AttributionService.swift`) call them from a service the walker
+//      reads. .NET's engine is deliberately BROWSER-side — `WildwoodComponents.Blazor/wwwroot/js/
+//      wildwood-attribution.js` and `WildwoodComponents.Razor/wwwroot/js/attribution.js`, which is
+//      also the copy WebForms packs — and this script walks only `.cs` files for the .NET root, so
+//      neither literal can be extracted there. Verified 2026-09-20 by reading all four sources:
+//      the same GET `attribution/config?appId=` (anonymous) and the same POST
+//      `attribution/touch?appId=` beacon (body `{appId, visitorKey, touch, platform}`) in every
+//      stack. `attribution/claim` IS 3-way extractable (Blazor AttributionServiceExtensions,
+//      Razor WildwoodAttributionService, core authService.ts, Swift AuthService) and stays under
+//      the normal check.
 
 // Normalized one-sided endpoints that are documented-benign per the cases above. The report
 // partitions these out of the "REVIEW" list so a genuine divergence stands out (they are still
@@ -166,6 +192,9 @@ const KNOWN_BENIGN_ONE_SIDED = new Set([
   'appcomponentconfigurations/{}/seeder-configuration',
   'appcomponentconfigurations/{}/seeder/ledger',
   'appcomponentconfigurations/{}/seeder/history',
+  // .NET's attribution capture/beacon engine is browser-side (wwwroot/js), outside this script's
+  // .cs-only file set for the .NET root (case 5 above); the paths themselves match 3-way:
+  'attribution/config', 'attribution/touch',
 ]);
 
 function normEndpoint(p) {
@@ -302,6 +331,8 @@ if (!QUIET) {
     console.log('    • registrationtokens/validate-detailed/{} — Razor server-render-only variant.');
     console.log('    • appcomponentconfigurations/{}/seeder-configuration|seeder/ledger|seeder/history —');
     console.log('      server-only Seeder component (.NET Shared + @wildwood/node); no Swift/iOS client.');
+    console.log('    • attribution/config|touch — .NET\'s attribution engine is browser-side (wwwroot/js),');
+    console.log('      outside the .cs-only walker; attribution/claim is checked 3-way as normal.');
   }
 }
 
