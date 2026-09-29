@@ -75,7 +75,7 @@ Self-contained pnpm monorepo with its own internal shared library:
 @wildwood/core                   ← JS shared library: services, types, utilities (framework-agnostic TS)
   ├─► @wildwood/react-shared     ← Shared React hooks + flows/machines (business logic, no UI)
   │     ├─► @wildwood/react      ← React components + hooks (49 components, 30 hooks)
-  │     └─► @wildwood/react-native ← React Native components (51 components, 31 hooks)
+  │     └─► @wildwood/react-native ← React Native components (51 components, 32 hooks)
   └─► @wildwood/node             ← Node.js/Express middleware + admin client
 ```
 
@@ -926,3 +926,30 @@ in total; React test suite **21** pages; Swift **46** `.swift` files under `Comp
 `WildwoodTestIDs` target is outside the rule's directory) and **19** of them theme-aware; Swift test
 suite **21** `TestScreen` cases; the label contract **95** strings; the Razor Node self-tests **209**
 / **77** / **50** checks.
+
+### Attribution funnel parity follow-up (2026-09-29)
+
+JS #33 (attribution funnel tracking: `track()`, auto events, the pre-consent session mirror, the
+registration funnel events, `useAttributionScreen`) was ported in the same run as .NET #28 and
+Swift #14. An audit of those ports against JS found event names, wire field names, constants and the
+error-category map **byte-identical in all five implementations**, and four real gaps, closed here.
+.NET #27 (the server's camelCase error message on a failed Blazor login, plus
+`AuthErrorCodes.TemporaryPasswordExpired`) was carried the other way.
+
+| Stack | Changes |
+|---|---|
+| **JS** | `AuthErrorCodes.TemporaryPasswordExpired` (changeset, patch). |
+| **.NET Blazor** | `SignupAccountCreator` keeps the server's refusal code (`registration_refused` only when it sent none, as JS's `toFailure`) and the HTTP status (`SignupAccountResult.HttpStatus`); both signup flows hand them to the funnel, so `signup_error` is `username_taken` rather than `unknown`. `IAttributionService.TrackAsync(name, label, value, path)` overload (JS `track(name, { path })`). A successful token registration's `AuthenticationResponse` is now parsed case-insensitively; it bound only `JwtToken` before, leaving `RefreshToken`, `UserId` and `Roles` empty. |
+| **.NET Razor** | `RegistrationSuccessResponse.ErrorCode`/`HttpStatus`; the regsub proxy relays the server's code and `status`; `regsub-signup.js` categorises by both. |
+| **.NET WebForms** | `Track`/`TrackAsync` now honour the app config as JS does (funnel on, custom name allowed, signup steps only with `TrackSignupSteps`): `GetConfigAsync` (5 min cache, failures never cached), `SendIfAcceptedAsync`. The rule is `AttributionRules.IsFunnelEventAcceptedBy` in Shared. |
+| **Swift** | `track(_:label:value:path:)` with JS's rule (a `page_view` naming its page is a navigation); new `AuthErrorCodes` (the full set; Swift had none). |
+| **Sync** | `parity-check.mjs`: `ww_attribution_session` is a web-only sessionStorage key, excluded from the localStorage comparison but hard-checked in JS and .NET `wwwroot/js`; `attribution/config` left the benign list (WebForms now extracts it). RN hooks 31 → **32** (`useAttributionScreen`). |
+
+**Declared divergences, not gaps**: Swift has no auto events and no session mirror (no DOM, no
+sessionStorage); WebForms omits `deviceClass` unless the host passes one (WildwoodAPI's DTO field is
+nullable and stores a missing value as unknown, so nothing is refused); Swift flushes on
+`didEnterBackground` only; the .NET flows send a few extra one-shot events (`signup_start` on a
+regsub submit, `checkout_start` from TokenRegistration), harmless because the engine sends each
+one-shot once per session. No stack maps auth codes to UI copy, and with `showDetailedErrors` off
+every stack still replaces the expired-temporary-password message with generic copy. Whether that
+case should bypass the setting is an open product decision, not a parity gap.

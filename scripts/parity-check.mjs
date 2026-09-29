@@ -73,6 +73,15 @@ const NET_NON_LOCALSTORAGE = new Set(['ww_access_token', 'ww_refresh_token', 'ww
 // check stays precise. ww_consent is the Consent SDK's first-party consent cookie.
 const COOKIE_NAMES = new Set(['ww_consent']);
 
+// Web-only SESSIONSTORAGE keys. ww_attribution_session is the attribution funnel's pre-consent
+// tab-session mirror (JS #33, .NET #28, 2026-09-28): it only exists because a browser visitor can
+// be undecided about consent across a reload. .NET's copy lives in the browser engines
+// (Blazor wwwroot/js/wildwood-attribution.js, Razor wwwroot/js/attribution.js), outside the
+// .cs-only walker, and Swift has no sessionStorage and no pre-consent tab session. Excluded from
+// the localStorage comparison, but still HARD-checked below: each key must appear in both the JS
+// sources and the .NET wwwroot scripts, so the two web engines cannot drift on the name.
+const WEB_SESSION_STORAGE = new Set(['ww_attribution_session']);
+
 function wwKeys(text, exclude = new Set()) {
   const set = new Set();
   const re = /['"`](ww_[a-zA-Z0-9_]+)['"`]/g;
@@ -109,10 +118,11 @@ const KNOWN_ROOTS = [
   // 'consent' — `consent/config` + `consent/record`, written as full literals by all three
   // (Razor WildwoodConsentService, core consentService.ts, WildwoodCore ConsentService.swift).
   'consent',
-  // 'attribution' — Campaign Attribution. Only `attribution/claim` is 3-way extractable: the .NET
-  // capture/beacon engine is BROWSER-side (wwwroot/js), which this script's .cs-only walker cannot
-  // read, so `attribution/config` and `attribution/touch` print one-sided. Documented case 5 below;
-  // the root is tracked anyway so a real claim-path divergence cannot hide.
+  // 'attribution' — Campaign Attribution. The .NET capture/beacon engine is BROWSER-side
+  // (wwwroot/js), which this script's .cs-only walker cannot read, so `attribution/touch` prints
+  // one-sided (documented case 5 below). `attribution/claim`, `attribution/events` and (since the
+  // WebForms funnel config gate, 2026-09-29) `attribution/config` are extractable in every stack
+  // and checked 3-way.
   'attribution',
 ];
 
@@ -169,7 +179,9 @@ const KNOWN_ROOTS = [
 //      `attribution/touch?appId=` beacon (body `{appId, visitorKey, touch, platform}`) in every
 //      stack. `attribution/claim` IS 3-way extractable (Blazor AttributionServiceExtensions,
 //      Razor WildwoodAttributionService, core authService.ts, Swift AuthService) and stays under
-//      the normal check.
+//      the normal check. UPDATE 2026-09-29: WebForms' server-side funnel `Track` now gates on the
+//      app config and fetches `attribution/config?appId=` from C# (WildwoodAttribution.cs), so that
+//      path extracts in .NET too and left the benign list; only `attribution/touch` remains here.
 
 // Normalized one-sided endpoints that are documented-benign per the cases above. The report
 // partitions these out of the "REVIEW" list so a genuine divergence stands out (they are still
@@ -194,7 +206,9 @@ const KNOWN_BENIGN_ONE_SIDED = new Set([
   'appcomponentconfigurations/{}/seeder/history',
   // .NET's attribution capture/beacon engine is browser-side (wwwroot/js), outside this script's
   // .cs-only file set for the .NET root (case 5 above); the paths themselves match 3-way:
-  'attribution/config', 'attribution/touch',
+  // (`attribution/config` left this list 2026-09-29: WebForms' WildwoodAttribution.GetConfigAsync
+  // now fetches it from C#, so it extracts in all three stacks and is checked 3-way.)
+  'attribution/touch',
 ]);
 
 function normEndpoint(p) {
@@ -275,13 +289,21 @@ const jsTs = readAll(JS_ROOT, ['.ts', '.tsx']);
 const swiftSrc = HAS_SWIFT ? readAll(SWIFT_ROOT, ['.swift']) : '';
 
 // [stackName, keySet, endpointSet]
+const NOT_LOCALSTORAGE = new Set([...COOKIE_NAMES, ...WEB_SESSION_STORAGE]);
 const stacks = [
-  ['.NET', wwKeys(netCs, new Set([...NET_NON_LOCALSTORAGE, ...COOKIE_NAMES])), endpoints(netCs, NET_EP)],
-  ['JS', wwKeys(jsTs, COOKIE_NAMES), endpoints(jsTs, JS_EP)],
+  ['.NET', wwKeys(netCs, new Set([...NET_NON_LOCALSTORAGE, ...NOT_LOCALSTORAGE])), endpoints(netCs, NET_EP)],
+  ['JS', wwKeys(jsTs, NOT_LOCALSTORAGE), endpoints(jsTs, JS_EP)],
 ];
 if (HAS_SWIFT) {
-  stacks.push(['Swift', wwKeys(swiftSrc, COOKIE_NAMES), endpoints(swiftSrc, SWIFT_EP)]);
+  stacks.push(['Swift', wwKeys(swiftSrc, NOT_LOCALSTORAGE), endpoints(swiftSrc, SWIFT_EP)]);
 }
+
+// The .NET browser engines (wwwroot/js, vendored *.min.js excluded) — read only for the
+// web-sessionStorage check, never for endpoints.
+const netWebJs = walk(NET_ROOT, ['.js'])
+  .filter((f) => /[\\/]wwwroot[\\/]/.test(f) && !f.endsWith('.min.js'))
+  .map((f) => readFileSync(f, 'utf8'))
+  .join('\n');
 
 const keyUnion = new Set(stacks.flatMap(([, keys]) => [...keys]));
 let keysOk = true;
@@ -293,6 +315,15 @@ for (const [name, keys] of stacks) {
   if (missing.length) {
     keysOk = false;
     console.log(`  ✗ missing in ${name}: ${missing.join(', ')}`);
+  }
+}
+const jsAllKeys = wwKeys(jsTs);
+const netWebKeys = wwKeys(netWebJs);
+for (const key of WEB_SESSION_STORAGE) {
+  const where = [['JS', jsAllKeys], ['.NET wwwroot/js', netWebKeys]].filter(([, s]) => !s.has(key)).map(([n]) => n);
+  if (where.length) {
+    keysOk = false;
+    console.log(`  ✗ web sessionStorage key ${key} missing in: ${where.join(', ')}`);
   }
 }
 console.log(keysOk ? '  ✓ storage keys aligned' : '  ✗ STORAGE KEY MISMATCH');
@@ -331,7 +362,7 @@ if (!QUIET) {
     console.log('    • registrationtokens/validate-detailed/{} — Razor server-render-only variant.');
     console.log('    • appcomponentconfigurations/{}/seeder-configuration|seeder/ledger|seeder/history —');
     console.log('      server-only Seeder component (.NET Shared + @wildwood/node); no Swift/iOS client.');
-    console.log('    • attribution/config|touch — .NET\'s attribution engine is browser-side (wwwroot/js),');
+    console.log('    • attribution/touch — .NET\'s attribution engine is browser-side (wwwroot/js),');
     console.log('      outside the .cs-only walker; attribution/claim is checked 3-way as normal.');
   }
 }
