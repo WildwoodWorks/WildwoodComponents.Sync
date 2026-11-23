@@ -35,7 +35,7 @@ WildwoodComponents.Shared          ← .NET shared library: models, DTOs, utilit
 
 **Two of those nine solution projects ship nothing** and arrived in the September 2026
 test-automation sync. `WildwoodComponents.Testing` (net10.0) references `Microsoft.Playwright`
-1.61.0 and `WildwoodComponents.Shared` — and nothing else of ours, because what it drives is the
+1.65.1 (November 2026; was 1.61.0) and `WildwoodComponents.Shared` — and nothing else of ours, because what it drives is the
 DOM, not a type. No shipped UI package references it, and a test asserts that: Playwright's driver
 copies roughly 100 MB of Node into the output of every project that references it, and C# has no
 type-only import, so where the JS helpers keep Playwright out of the built module with
@@ -440,7 +440,7 @@ the three delta appendices: `Plan/20260918-1238-regsub-cross-stack-parity/plan.m
 - **Web-only pieces were not ported literally**: Stripe.js/Elements (`payment/stripe.ts`,
   `useStripeCardElement`, `CardSetupForm`), `initialCatalog`/SSR seeding, Storybook. Blazor and
   Razor reach Stripe through their existing script interop. The **exact `@playwright/test` pin**
-  (1.61.1 in both the devDependency and the optional peer) belongs on this list too: it is a JS
+  (1.65.1 since November 2026, in both the devDependency and the optional peer) belongs on this list too: it is a JS
   packaging fact, not a cross-stack contract, and it has no C# or Swift analog — NuGet has no peer
   dependencies and a library `PackageReference` is a floor the consumer overrides.
   > **CORRECTION (2026-09-22).** This bullet also used to say the `@wildwood/react/testing`
@@ -831,8 +831,11 @@ scope the content while leaving the step read itself ambiguous.
 7. **A host's `testID` composes, never replaces.** (Rule 2 above.)
 8. **Swift ships identifier constants only**, in a Foundation-only product. (Above.)
 9. **.NET gets a separate opt-in package**, because C# has no type-only import: the boundary is the
-   mechanism, not the version. Playwright is pinned at **1.61.0** there rather than JS's 1.61.1 —
-   NuGet only ever publishes `x.y.0` of it, so 1.61.1 does not exist; same release line.
+   mechanism, not the version. Playwright was pinned at **1.61.0** there rather than JS's 1.61.1,
+   on the belief that NuGet only ever publishes `x.y.0` of it. **That was wrong**: NuGet carries
+   patch releases too (1.65.1 exists). Since November 2026 both stacks pin the same version,
+   **1.65.1** — keep them identical by convention, not merely on the same release line. (The
+   NuGet reference is still only a floor a consumer can raise; only the JS pin is enforced.)
 10. **React Native's helpers take an INJECTED DRIVER**, so the package depends on no runner. Detox,
     Maestro and React Native Testing Library each consume the surface differently — and **Maestro
     cannot implement a driver at all**: it drives from YAML in a sandbox with no JS-callable UI API,
@@ -953,3 +956,34 @@ regsub submit, `checkout_start` from TokenRegistration), harmless because the en
 one-shot once per session. No stack maps auth codes to UI copy, and with `showDetailedErrors` off
 every stack still replaces the expired-temporary-password message with generic copy. Whether that
 case should bypass the setting is an open product decision, not a parity gap.
+
+### Dependency update (2026-11-23)
+
+Every library's third-party dependencies were brought current, staying on .NET 10. Run record:
+`Plan/20261123-0758-update-all-library-deps/` (`notes.md` holds the probes behind each decline).
+
+| Stack | Changes |
+|---|---|
+| **JS** | All minor/patch bumps (React 19.3, Storybook 10.6, eslint 10.15, …); majors vitest 5 + coverage-v8 5, jsdom 31, jest-dom 8, msw 3 (`onUnhandledRequest` → `onUnhandledFrame`), tsup 9, vite 8 + plugin-react 6, @types/node 26, lint-staged 17, changesets 3; TypeScript 5.9 → **6.0.3**; deprecated `@types/react-native` stub replaced by a direct `react-native` devDependency. CI matrix Node **[20, 22] → [22, 24]** (Node 20 is EOL and vitest 5 / msw 3 / jsdom 31 need ≥ 22.12–22.22). `@wildwood/react/styles` gained a `types` condition (static `styles.d.ts`) because TS 6 checks side-effect imports by default. |
+| **.NET** | Microsoft.* 10.0.2 → 10.0.15 on net10.0; the netstandard2.0 / net48 leg stays on 8.0.x (8.0.6 / 8.0.3) to keep .NET Framework binding redirects unchanged; Playwright 1.65.1; Test.Sdk 18, xunit.runner.visualstudio 4, coverlet 10. |
+| **Swift** | Nothing — `Package.swift` has no package dependencies. |
+
+**Declined, with evidence — do not re-attempt without re-checking:**
+
+- **TypeScript 7.** It ships no compiler API. tsup 9 calls `parseJsonConfigFileContent` on the
+  resolved `typescript` directly (the `@typescript/typescript6` compat package only rescues its
+  declaration bundler), typescript-eslint 8.73 peers `<6.1.0` and typedoc 0.28 peers `≤ 6.0.x`.
+  6.0 is the newest version the toolchain accepts.
+- **undici 8** (the optional dependency of `@wildwood/node`). The seeder hands a userland undici
+  `Agent` to Node's **built-in** `fetch` as `dispatcher`; an undici 8 Agent fails there with
+  `invalid onRequestStart method` on Node 22 (bundled undici 6.21) and Node 24 (bundled 7.30)
+  alike, while undici 7 works on both. Taking 8 means moving the seeder onto undici's own `fetch`.
+- **.NET 11** (11.0.0 packages) — needs a net11.0 retarget; out of scope for this run.
+
+**Repo setting this run could not change:** JS `main`'s branch protection requires the checks
+`build-and-test (20)` and `build-and-test (22)`, which name the old matrix. They must become
+`(22)` and `(24)` or the PR cannot merge.
+
+**Pre-existing, now measured:** the e2e test "a failed signup is retried, and reported with the
+failure text…" is flaky on the untouched baseline too (2 of 63 runs failed without retries on
+Playwright 1.61; 1 of 63 on 1.65). CI's single retry hides it.
