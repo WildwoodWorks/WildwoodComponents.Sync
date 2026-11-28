@@ -26,7 +26,7 @@ Self-contained .NET solution with its own internal shared library:
 
 ```
 WildwoodComponents.Shared          ← .NET shared library: models, DTOs, utilities, machines
-  ├─► WildwoodComponents.Blazor    ← Blazor interactive components (53 .razor files)
+  ├─► WildwoodComponents.Blazor    ← Blazor interactive components (54 .razor files)
   ├─► WildwoodComponents.Razor     ← Razor ViewComponents for MVC (34 components)
   ├─► WildwoodComponents.WebForms  ← classic WebForms user controls, .NET Framework 4.8
   └─► WildwoodComponents.Testing   ← opt-in Playwright helpers over the data-ww-* DOM contract
@@ -44,10 +44,10 @@ is a console runner (`IsTestProject=false`, so `dotnet test` never picks it up) 
 shipped helpers against a loopback Kestrel fixture; it is in the solution and compiled by a CI step
 of its own, and run by hand. See the test-automation section at the end of this file.
 
-Count rules (verified 2026-09-20, re-measured 2026-09-22, so the numbers are reproducible):
+Count rules (verified 2026-09-20, re-measured 2026-09-22 and 2026-11-27, so the numbers are reproducible):
 **Blazor** = `.razor`
-files under `WildwoodComponents.Blazor/Components/` (56) minus the three `*Demo.razor`
-host samples = **53**. **Razor** = `*ViewComponent.cs` files under
+files under `WildwoodComponents.Blazor/Components/` (57) minus the three `*Demo.razor`
+host samples = **54** (53 → 54 on 2026-11-27: `Security/PasskeyManagementComponent.razor`, from .NET #33). **Razor** = `*ViewComponent.cs` files under
 `WildwoodComponents.Razor/Components/` = **34**. **WebForms** = shipped `.ascx` controls = **2**.
 
 **Read the Blazor number the way you read the Swift one below: it is a FILE count, not a count
@@ -74,8 +74,8 @@ Self-contained pnpm monorepo with its own internal shared library:
 ```
 @wildwood/core                   ← JS shared library: services, types, utilities (framework-agnostic TS)
   ├─► @wildwood/react-shared     ← Shared React hooks + flows/machines (business logic, no UI)
-  │     ├─► @wildwood/react      ← React components + hooks (49 components, 30 hooks)
-  │     └─► @wildwood/react-native ← React Native components (51 components, 32 hooks)
+  │     ├─► @wildwood/react      ← React components + hooks (50 components, 32 hooks)
+  │     └─► @wildwood/react-native ← React Native components (52 components, 34 hooks)
   └─► @wildwood/node             ← Node.js/Express middleware + admin client
 ```
 
@@ -105,7 +105,7 @@ regsub sync:
   tracks genuinely shared logic.
 
 - **@wildwood/core** is the JS-internal shared library. Pure TypeScript, zero UI dependencies. Contains `AuthService`, `AIService`, `MessagingService`, `PaymentService`, `TwoFactorService`, `CaptchaService`, `AppTierService`, `DisclaimerService`, `NotificationService`, `ThemeService`, `WildwoodEventEmitter`, `WildwoodClient`, and all shared types. Consumed by all other JS packages.
-- **@wildwood/react-shared** holds **32** hooks with pure business logic (no UI) shared between React web and React Native (count rule, verified 2026-09-20: distinct `use*` value exports from `./hooks/` in `packages/wildwood-react-shared/src/index.ts` — two of them, `useAuthenticationLogic` and `useTwoFactorLogic`, are consumed by the UI packages rather than re-exported from them). **What the rule EXCLUDES**: the September 2026 sync added the registration/subscription flow hooks under `./registrationSubscription/`, not `./hooks/` — `useSignupFlow`, `usePlanChangeFlow`, `usePackCheckoutFlow` — so the package's total `use*` value exports are **35** while the stated `./hooks/` rule reports 32. Alongside them the same directory holds the DOM-free regsub pieces both UI packages share: `labels.ts` (the 95-string default label set + `resolveLabels`), `types.ts`, `stepTokens.ts`, the three machines (`signupMachine`, `packCheckoutMachine`, `planChangeMachine`) and `paymentActions.ts` — the `PaymentActionAdapter` seam the flows are injected with, so react-shared stays DOM-free and Stripe-free while React supplies a Stripe.js-backed adapter and native hosts supply their own (or none).
+- **@wildwood/react-shared** holds **34** hooks (re-measured 2026-11-27: +`useTwoFactorEnrollmentRequired` from JS #39, +`usePasskeyManagement`) with pure business logic (no UI) shared between React web and React Native (count rule, verified 2026-09-20: distinct `use*` value exports from `./hooks/` in `packages/wildwood-react-shared/src/index.ts` — two of them, `useAuthenticationLogic` and `useTwoFactorLogic`, are consumed by the UI packages rather than re-exported from them). **What the rule EXCLUDES**: the September 2026 sync added the registration/subscription flow hooks under `./registrationSubscription/`, not `./hooks/` — `useSignupFlow`, `usePlanChangeFlow`, `usePackCheckoutFlow` — so the package's total `use*` value exports are **37** while the stated `./hooks/` rule reports 34. Alongside them the same directory holds the DOM-free regsub pieces both UI packages share: `labels.ts` (the 95-string default label set + `resolveLabels`), `types.ts`, `stepTokens.ts`, the three machines (`signupMachine`, `packCheckoutMachine`, `planChangeMachine`) and `paymentActions.ts` — the `PaymentActionAdapter` seam the flows are injected with, so react-shared stays DOM-free and Stripe-free while React supplies a Stripe.js-backed adapter and native hosts supply their own (or none).
 - **@wildwood/react** wraps core services with React components and re-exports shared hooks.
 - **@wildwood/react-native** provides native mobile components using the same shared hooks.
 - **@wildwood/node** provides Express middleware (`authMiddleware`, `rateLimitMiddleware`, `proxyMiddleware`), `adminClient` for server-to-server operations, and the **Seeder** (`seeder/` — `SeederRunner`/`runSeeder`, the server-side app-data seeding harness ported from .NET `WildwoodComponents.Shared/Seeder`). The Seeder is server-only (CompanyAdmin login + startup seeding) and so has no `@wildwood/core`, react, react-native, or Swift counterpart — the same reason `@wildwood/node` itself has no Swift equivalent.
@@ -117,7 +117,7 @@ Self-contained SPM package (three products) with its own internal shared library
 
 ```
 WildwoodCore                     ← Swift shared library: services, models, session/token mgmt (zero UI imports)
-  └─► WildwoodSwiftUI            ← SwiftUI components (46 .swift files) + @Observable view models
+  └─► WildwoodSwiftUI            ← SwiftUI components (47 .swift files) + @Observable view models
         ├─ ViewModels/           ← ≈ @wildwood/react-shared (no `import SwiftUI`)
         └─ Components/           ← ≈ @wildwood/react-native (iOS-gated)
 WildwoodTestIDs                  ← the accessibility-identifier vocabulary alone (Foundation only)
@@ -171,7 +171,7 @@ Each project has its own shared library serving the same purpose within its tech
 | (no equivalent) | `@wildwood/node` | (no equivalent) | Server-side SDK |
 | `WildwoodComponents.Testing` | `@wildwood/react/testing`, `@wildwood/react-native/testing` | `WildwoodTestIDs` | The test-automation contract: identifier vocabulary, and drivers where the stack can carry them |
 
-## Component Inventory (28 components at parity)
+## Component Inventory (29 components at parity)
 
 All three stacks implement these components:
 - **AI**: AIChatComponent, AIProxyComponent (all three stacks ship one, but the shapes differ: React/RN and Blazor/Razor each give it its own file and UI, while Swift's is a thin `View` wrapper over `AIChatComponent(useProxy: true)` declared inside `Components/AI/AIChatComponent.swift`. The `api/ai/proxy` call itself lives in `WildwoodCore`'s `AIService`, so the wrapper is a packaging choice, not a missing component), AIFlowComponent (July 2026 — app-facing "AI Flows with LangChain": SSE-streamed runs of published LangGraph flows with human-in-the-loop interrupts and run history; a NEW feature, unrelated to the obsolete AIFlow deleted May 2026)
@@ -181,7 +181,7 @@ All three stacks implement these components:
 - **Pricing/Tiers**: PricingDisplayComponent, AppTierComponent
 - **Registration & Subscription**: RegistrationAndSubscriptionComponent (September 2026 — one entry point over three views, `pricing` / `signup` / `manage`, in every stack: React and RN ship `RegistrationAndSubscriptionComponent` + `RegistrationSubscription{Pricing,Signup,Manage}` with the flows, labels and machines shared through `@wildwood/react-shared`; Blazor ships the component, the three views and `Components/RegistrationSubscription/Parts/`, with drivers over the `WildwoodComponents.Shared` machines; Razor ships `<vc:registration-and-subscription view="…">` plus three ViewComponents, with the machines ported to `wwwroot/js/regsub-machines.js` and a library-shipped same-origin proxy at `api/wildwood-regsub`; Swift ships `RegistrationAndSubscriptionComponent` + `RegistrationSubscription{Pricing,Signup,Manage}View` with `@MainActor @Observable` flow models over the value-type machines.) **Campaign Attribution is NOT counted here**: it is a service plus a hook/drop-in (`AttributionService` + `useAttribution`, Blazor/Razor engines, `WildwoodCore.AttributionService`), recorded in the docs but not a UI component — the same rule the Seeder falls under. `SignupWithSubscriptionComponent`, `AppTierComponent` and `PricingDisplayComponent` are **deprecated in every stack** as of this sync (`@deprecated` JSDoc, `[Obsolete]`, `@available(*, deprecated)`), pointing at the new views; they still ship, still work and still count.
 - **Feature gating**: FeatureGate (July 2026 — cached fail-open entitlement gate over `user-features`; React/RN components + `useFeatures`, Blazor `FeatureGateComponent` + `IFeatureEntitlementService`, Swift `FeatureGate` view + `FeatureStore`; Razor idiomatically uses server-side `HasFeatureAsync` in `@if` blocks instead of a ViewComponent)
-- **Security**: TwoFactorSettingsComponent
+- **Security**: TwoFactorSettingsComponent, PasskeyManagementComponent (November 2026 — the signed-in user's passkeys: list, add, rename, remove over `api/webauthn`. Blazor `PasskeyManagementComponent` + `IPasskeyManagementService`; React/RN `PasskeyManagementComponent` over the shared `usePasskeyManagement`; Swift `PasskeyManagementView` over `WildwoodPasskeyManagementModel`. The **creation ceremony is injected** on RN and Swift (`createCredential`), as the payment handler is, so neither takes a passkey SDK dependency; React ships its own `navigator.credentials.create` helper. **Razor and WebForms have no passkeys at all** — the recorded server-rendered limit — so this is a Blazor/React/RN/Swift component, the way FeatureGate has no Razor ViewComponent.)
 - **Messaging**: SecureMessagingComponent
 - **Notifications**: NotificationComponent, NotificationToastComponent
 - **Usage**: UsageDashboardComponent, OverageSummaryComponent
@@ -987,3 +987,74 @@ Every library's third-party dependencies were brought current, staying on .NET 1
 **Pre-existing, now measured:** the e2e test "a failed signup is retried, and reported with the
 failure text…" is flaky on the untouched baseline too (2 of 63 runs failed without retries on
 Playwright 1.61; 1 of 63 on 1.65). CI's single retry hides it.
+
+### November 2026 parity sync (2026-11-27)
+
+Everything that merged after the dependency update (JS #35, #37–#41; .NET #30, #31, #33, #34;
+Swift #16) was carried to the other stacks, plus four optional items the user chose: passkey
+management in every stack that has passkeys, its native UIs, chat adopting the server's session
+id, and the "app not enforcing two-factor" notice. Run record:
+`Plan/20261127-1806-parity-sync-nov/` (`plan.md` holds the three gap audits; `state.md` the
+18 stages, each reviewed by a fresh agent).
+
+| Stack | Changes |
+|---|---|
+| **JS core** | `isPasskeyEnabled`, `listPasskeys`, `renamePasskey`, `deletePasskey`, `FriendlyName` on `register/options`, `UserPasskey`, a PATCH verb; `AuthErrorCodes.TwoFactorEnrollmentRequired`. |
+| **JS react-shared + React + RN** | `usePasskeyManagement` (ceremony injected) + `PasskeyManagementComponent` in both UI packages (React ships a WebAuthn creation helper; RN takes `createCredential`); `onTwoFactorEnrollmentRequired` on `AuthenticationComponent`; `TwoFactorSettingsComponent appId` → app-not-enforcing notice; chat adopts a differing server session id (`chatSessionToAdopt`); React chat mobile toggle row + placeholder ellipsis / `field-sizing` (Blazor #30/#31). |
+| **.NET Testing** | JS #35/#37: bounded Accept/retry clicks (`TryClickAsync`), `isDone` first, separate `RetryLimit` (12 × 6 s), rate-limited processing failures waited out, defaults `RateLimitWaits` 4 / `RateLimitPauseMs` 30 s. |
+| **.NET Blazor** | Signup waits for `SessionInitialized` before latching signed-in (JS #37); `IWildwoodSessionManager` two-factor enrollment state — `IsTwoFactorEnrollmentPending`, `CompleteTwoFactorEnrollmentAsync`, `TwoFactorEnrollmentRequired(source)` / `TwoFactorEnrollmentCompleted` (default interface members), flag **or** `tfa_enroll_pending` claim, API refusals scoped to the refused user; standalone settings lift the restriction; the enrollment step no longer goes silent; `VerifyPasskeyAuthenticationAsync(…, sessionId)`; `AuthErrorCodes.TwoFactorEnrollmentRequired`. |
+| **.NET Shared + Blazor + Razor** | `TierChangeRules.IsTierChangeAllowed` (JS #38) in both `TierPlansPanel`s; `AllowUpgrades`/`AllowDowngrades` now **default true** (a missing field means allowed, as JS/Swift). |
+| **.NET Razor** | Two-factor enrollment required honoured (was: full sign-in for a restricted user): session flag, `CompleteTwoFactorEnrollmentAsync`, `ww-enroll-view` + `{proxy}/two-factor-enrollment-complete`, `twoFactorSetupUrl`, a handler marking the caller's session on the 403; token registration sends `PaymentTransactionId`/`PaymentIntentId` on register (the 401-ing `link-transaction` follow-up is gone), `allowSkipPayment`, trial days, camelCase default pricing; app-not-enforcing notice (`GetConfigurationAsync`); chat session adoption + placeholder CSS. |
+| **.NET WebForms** | Two-factor enrollment required, with the shipped proxy issuing the cookie only once lifted, only for a pending session, named from the server's answer. |
+| **Swift** | Signup waits for `.sessionInitialized`; `TokenRegistrationComponent` checks the password policy (it checked none); `TierChangeRules` + `TierFooterAction.unavailable`; `.twoFactorEnrollmentRequired(source:)` + `.twoFactorEnrollmentCompleted`, JS-named `isTwoFactorEnrollmentPending` / `completeTwoFactorEnrollment()`, `onTwoFactorEnrollmentRequired`, settings lift + `appId:` notice; passkey management calls + `PasskeyManagementView` (ceremony injected). |
+| **Sync** | This section; counts re-measured; inventory 28 → 29. The `twofactor/...` one-sided endpoint was an extraction artifact — a comment in Blazor's `TwoFactorSettingsService` quoting a path — fixed by rewording the comment, not by a benign entry. `webauthn/*` now extracts three-way. |
+
+**Decisions — idioms, not gaps**
+
+- **The two-factor enrollment rule is the forced reset's rule: store the tokens, withhold the
+  sign-in.** Enrollment calls need the restricted token, so Razor/WebForms keep it server-side and
+  issue no app cookie until the refresh comes back unrestricted. The enrollment check runs
+  **before** the reset check, because a restricted token cannot call the reset endpoint.
+- **The flag OR the claim, everywhere.** The refresh-token response never carries
+  `requiresTwoFactorEnrollment`; the `tfa_enroll_pending` claim is what lifts or keeps it. Razor
+  and WebForms therefore **re-derive** the flag on refresh, the opposite of the forced-reset flag,
+  which they carry forward.
+- **Refusals are attributed, never broadcast.** The .NET 403 event source is app-wide (Blazor
+  Server shares it between users), so a refusal restricts a session only when its bearer's `sub`
+  matches that session's user — a refusal with no bearer restricts nobody.
+- **Passkey creation is injected on native stacks** (RN `createCredential`, Swift
+  `PasskeyCredentialCreator`), the payment-handler idiom: an `ASAuthorization`/native-module
+  ceremony needs host entitlements. Without one, passkeys list, rename and remove, and the add
+  control is a notice. React ships its own `navigator.credentials.create` helper, ported from
+  Blazor's `webauthn.js`.
+- **Chat follows the server's session id whenever it differs**, in all five stacks now (React,
+  RN and Razor used to adopt only when none was tracked).
+- **The app-not-enforcing notice only appears when the host names its app** (Blazor `AppId`,
+  React/RN/Swift `appId`, Razor the configured app), and an unreadable configuration shows none.
+- **Swift's `TierFooterAction` gained a case and `WildwoodEvent.twoFactorEnrollmentRequired` a
+  payload** — source-breaking only for a host switching exhaustively, the policy the
+  `WildwoodEvent` doc comment already states. `case .twoFactorEnrollmentRequired:` without a
+  binding still compiles.
+
+**Deferred — known divergences; do not flag these as regressions**
+
+- **The app-not-enforcing notice is not on WebForms' `TwoFactorSettingsControl`** (optional in the
+  plan; Phase A).
+- **Razor's token-registration inline payment div still lacks the id `wwPayment` looks up**
+  (pre-existing, recorded in September); the trial days now reach the div it renders.
+- **The RN two-factor notice carries no `testID`**: the RN contract test admits only the signup
+  `WW_IDS` vocabulary, and the notice is not part of that contract.
+- **A passkey mutation that lands but whose follow-up list reload fails reports an error** on
+  React, RN and Swift until the next load — the Blazor component behaves the same.
+- **The Razor `/two-factor-enrollment-complete` route is host-owned** (Razor's proxy always is);
+  the README sample carries the pending check and the server-derived cookie name.
+
+**Swift compile gate.** As in every sync, the Swift half was authored on Windows and reviewed
+read-for-compile only; macOS CI `build-test` is the first real compile.
+
+**Counts re-measured 2026-11-27.** React **50** components / **32** hooks; React Native **52** /
+**34**; `@wildwood/react-shared` **34** under `./hooks/`, **37** `use*` in total; Blazor
+57 − 3 = **54** `.razor` files; Razor **34** ViewComponents (unchanged); Swift **47** `.swift`
+files under `Components/`. The hook numbers had already drifted by one each before this run
+(`useTwoFactorEnrollmentRequired`, JS #39); the component numbers moved by exactly one each,
+`PasskeyManagementComponent` / `PasskeyManagementView`.
